@@ -3,8 +3,19 @@
 {% block content %}
 <div class="max-w-4xl mx-auto">
 
+    <!-- Informational Banner - Placed right after navbar -->
+    <div class="mb-6 px-5 py-4 rounded-3xl text-sm bg-zinc-900 border border-zinc-700 text-zinc-300">
+        <div class="flex items-start gap-x-3">
+            <i class="fa-solid fa-info-circle mt-0.5 text-emerald-400"></i>
+            <div>
+                <strong>All functions work.</strong> Initially loading account data will not populate until you run any hack or preset. 
+                After running the first action, your current money, coins, and stats will appear.
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
-    <div class="flex items-center justify-between mb-6">
+    <div class="flex items-center justify-between mb-8">
         <div>
             <h1 class="text-4xl font-display font-semibold tracking-tighter">Dashboard</h1>
             <p class="text-zinc-400 mt-1">Logged in as <span class="font-medium text-white">{{ email }}</span></p>
@@ -14,17 +25,6 @@
             <i class="fa-solid fa-sign-out-alt"></i>
             <span>Logout</span>
         </a>
-    </div>
-
-    <!-- Warning Message (Only one, at the top) -->
-    <div class="mb-6 px-5 py-4 rounded-3xl text-sm bg-red-950/70 border border-red-900 text-red-300">
-        <div class="flex items-start gap-x-3">
-            <i class="fa-solid fa-exclamation-triangle mt-0.5"></i>
-            <div>
-                <strong>All functions work.</strong> Initially loading account data will not populate until you run any hack or preset. 
-                After running the first action, your current money, coins, and stats will appear.
-            </div>
-        </div>
     </div>
 
     <!-- Current Stats -->
