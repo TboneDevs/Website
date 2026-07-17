@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-CPM Web Tool - Full Updated Version (A + B fixes applied)
+TNNR CPM1 Webtool - Simplified Version
 """
 
 import asyncio
@@ -106,50 +106,43 @@ def action(action):
     web_uid = get_web_uid()
     result = {"ok": False, "message": "Unknown action"}
 
+    # Money & Coins
     if action == "set_money":
         amount = int(request.form.get('amount', 0))
         result = run_async(nuker.set_money(web_uid, amount))
+
     elif action == "set_coin":
         amount = int(request.form.get('amount', 0))
         result = run_async(nuker.set_coin(web_uid, amount))
-    elif action == "set_name":
-        new_name = request.form.get('name', '').strip()
-        result = run_async(nuker.set_player_name(web_uid, new_name))
-    elif action == "set_pid":
-        new_pid = request.form.get('pid', '').strip().upper()
-        result = run_async(nuker.set_player_id(web_uid, new_pid))
-    elif action == "set_wins":
-        amount = int(request.form.get('amount', 0))
-        result = run_async(nuker.set_race_wins(web_uid, amount))
-    elif action == "set_loses":
-        amount = int(request.form.get('amount', 0))
-        result = run_async(nuker.set_race_loses(web_uid, amount))
-    elif action == "unlock_w16":
-        result = run_async(nuker.unlock_w16(web_uid))
-    elif action == "unlock_horns":
-        result = run_async(nuker.unlock_horns(web_uid))
-    elif action == "disable_damage":
-        result = run_async(nuker.disable_damage(web_uid))
-    elif action == "unlimited_fuel":
-        result = run_async(nuker.unlimited_fuel(web_uid))
-    elif action == "unlock_smoke":
-        result = run_async(nuker.unlock_smoke(web_uid))
-    elif action == "unlock_animations":
-        result = run_async(nuker.unlock_animations(web_uid))
-    elif action == "unlock_wheels":
-        result = run_async(nuker.unlock_wheels(web_uid))
-    elif action == "unlock_houses":
-        result = run_async(nuker.unlock_houses(web_uid))
-    elif action == "complete_levels":
-        result = run_async(nuker.complete_all_levels(web_uid))
-    elif action == "unlock_equipments_male":
-        result = run_async(nuker.unlock_equipments_male(web_uid))
-    elif action == "unlock_equipments_female":
-        result = run_async(nuker.unlock_equipments_female(web_uid))
+
+    # Max Rank
     elif action == "set_rank":
         result = run_async(nuker.set_rank(web_uid))
-    elif action == "fix_account":
-        result = run_async(nuker.fix_account_data(web_uid))
+
+    # Complete All Levels
+    elif action == "complete_levels":
+        result = run_async(nuker.complete_all_levels(web_uid))
+
+    # === PRESETS ===
+    elif action == "preset_50m_30k":
+        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+        r2 = run_async(nuker.set_coin(web_uid, 30_000))
+        result = {"ok": r1.get("ok") and r2.get("ok")}
+
+    elif action == "preset_50m_50k":
+        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+        r2 = run_async(nuker.set_coin(web_uid, 50_000))
+        result = {"ok": r1.get("ok") and r2.get("ok")}
+
+    elif action == "preset_50m_100k":
+        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+        r2 = run_async(nuker.set_coin(web_uid, 100_000))
+        result = {"ok": r1.get("ok") and r2.get("ok")}
+
+    elif action == "preset_50m_500k":
+        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+        r2 = run_async(nuker.set_coin(web_uid, 500_000))
+        result = {"ok": r1.get("ok") and r2.get("ok")}
 
     if result.get("ok"):
         flash(f"✅ {action.replace('_', ' ').title()} completed successfully!", "success")
@@ -174,10 +167,10 @@ def logout():
 
 @app.route('/health')
 def health():
-    return "✅ CPM Web Tool is running", 200
+    return "✅ TNNR CPM1 Webtool is running", 200
 
 
 if __name__ == '__main__':
     port = int(os.getenv("PORT", 8080))
-    print(f"🚀 Starting CPM Web Tool on port {port}")
+    print(f"🚀 Starting TNNR CPM1 Webtool on port {port}")
     app.run(host="0.0.0.0", port=port, debug=False)
