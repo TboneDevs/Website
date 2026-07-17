@@ -1,32 +1,73 @@
-<!DOCTYPE html>
-<html lang="en">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>tnnr.shop</title>
+{% extends "base.html" %}
 
-    <link rel="stylesheet" href="style.css">
+{% block content %}
+<div class="max-w-2xl mx-auto">
+    <!-- Hero / Warning -->
+    <div class="text-center mb-10">
+        <div class="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-zinc-900 border border-zinc-800 text-sm mb-6">
+            <i class="fa-solid fa-globe text-emerald-400"></i>
+            <span class="font-medium">Public Web Version</span>
+        </div>
+        
+        <h1 class="text-6xl font-display font-semibold tracking-tighter">CPM Account Editor</h1>
+        <p class="mt-4 text-xl text-zinc-400">Modify your Car Parking Multiplayer account directly from the browser</p>
+    </div>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
-</head>
-<body>
+    <!-- Big Warning -->
+    <div class="bg-red-950/40 border border-red-900/70 rounded-3xl p-6 mb-8">
+        <div class="flex gap-x-4">
+            <div class="flex-shrink-0">
+                <i class="fa-solid fa-exclamation-triangle text-red-400 text-3xl"></i>
+            </div>
+            <div class="text-sm">
+                <div class="font-semibold text-red-300 mb-1.5">SECURITY WARNING</div>
+                <ul class="space-y-1.5 text-red-300/90 text-[13px]">
+                    <li>• This tool will log into your CPM account using your email and password.</li>
+                    <li>• Your credentials are sent to CPM servers and temporarily processed here.</li>
+                    <li>• <strong>We do not store your password</strong> after the session ends.</li>
+                    <li>• Use this tool at your own risk. Account modifications can be risky.</li>
+                    <li>• Never use this on accounts you care about or with real money.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
 
-<div class="background"></div>
+    <!-- Login Card -->
+    <div class="glass border border-zinc-800 rounded-3xl p-8">
+        <div class="mb-6">
+            <div class="font-semibold text-lg">Sign in with your CPM account</div>
+            <div class="text-sm text-zinc-400 mt-1">We'll load your current progress and let you modify it.</div>
+        </div>
 
-<div class="container">
-    <h1>tnnr<span>.</span>shop</h1>
+        <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
+            <div>
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Email Address</label>
+                <input type="email" name="email" required 
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="you@gmail.com">
+            </div>
+            
+            <div>
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Password</label>
+                <input type="password" name="password" required 
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="••••••••">
+            </div>
 
-    <div class="line"></div>
+            <button type="submit"
+                    class="w-full mt-2 flex items-center justify-center gap-x-3 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 transition-all text-black font-semibold py-4 rounded-3xl text-sm tracking-wider">
+                <i class="fa-solid fa-sign-in-alt"></i>
+                <span>LOGIN &amp; LOAD ACCOUNT</span>
+            </button>
+        </form>
 
-    <p class="coming">Coming Soon</p>
+        <div class="mt-6 text-center text-[10px] text-zinc-500">
+            Your login is processed securely. Password is never saved to disk after the request.
+        </div>
+    </div>
 
-    <p class="description">
-        Something big is being built.
-        Stay tuned.
-    </p>
+    <div class="mt-8 text-center text-xs text-zinc-500">
+        Made for personal use • Not affiliated with Car Parking Multiplayer
+    </div>
 </div>
-
-</body>
-</html>
+{% endblock %}
