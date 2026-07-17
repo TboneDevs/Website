@@ -68,12 +68,10 @@ def login():
 
     if loaded:
         flash(f"✅ Successfully logged in as {email}", "success")
-    else:
-        flash("⚠️ Login succeeded but account data could not be loaded. Some features may not work correctly.", "error")
 
     # === Important instruction after login ===
     flash(
-        "ℹ️ Important: To properly save changes, please <strong>logout of the game first</strong>, "
+        "ℹ️ Important: To properly save changes, please logout of the game first, "
         "then run hacks/presets here. Once the site shows 'successful', log back into the game.",
         "info"
     )
