@@ -1,0 +1,41 @@
+{% extends 'base.html' %}
+{% block title %}Dashboard - CPM Nuker{% endblock %}
+
+{% block content %}
+  <h1>Dashboard</h1>
+  <p>Logged in as: <strong>{{ user }}</strong></p>
+
+  <h3>Add Money</h3>
+  <form method="post" action="{{ url_for('do_action') }}">
+    <input type="hidden" name="action" value="add_money">
+    <div class="input-group mb-3">
+      <input type="number" name="amount" class="form-control" placeholder="Amount" required>
+      <button class="btn btn-outline-primary" type="submit">Add</button>
+    </div>
+  </form>
+
+  <h3>Add Coins</h3>
+  <form method="post" action="{{ url_for('do_action') }}">
+    <input type="hidden" name="action" value="add_coins">
+    <div class="input-group mb-3">
+      <input type="number" name="amount" class="form-control" placeholder="Amount" required>
+      <button class="btn btn-outline-primary" type="submit">Add</button>
+    </div>
+  </form>
+
+  <h3>Unlock All</h3>
+  <form method="post" action="{{ url_for('do_action') }}">
+    <input type="hidden" name="action" value="unlock_all">
+    <button class="btn btn-danger mb-3" type="submit">Unlock Everything</button>
+  </form>
+
+  <h3>Apply Preset</h3>
+  <form method="post" action="{{ url_for('do_action') }}">
+    <input type="hidden" name="action" value="preset">
+    <div class="input-group mb-3">
+      <input class="form-control" name="preset_name" placeholder="Preset name (e.g. drift, speed)">
+      <button class="btn btn-outline-primary" type="submit">Apply</button>
+    </div>
+  </form>
+
+{% endblock %}
