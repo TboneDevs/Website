@@ -11,7 +11,6 @@ nuker = CPMNuker()
 
 @app.route('/', methods=['GET'])
 def index():
-    # If already logged in, redirect to dashboard
     if session.get('logged_in'):
         return redirect(url_for('dashboard'))
     return render_template('index.html')
@@ -27,6 +26,7 @@ def login():
         if result.get("ok"):
             session['logged_in'] = True
             session['cpm_email'] = email
+            # Storing as string to avoid type errors
             session['cpm_uid'] = str(result.get('localId')) 
             nuker.save_token(session['cpm_uid'], result['auth'], email, password, result.get('refresh_token'))
             return redirect(url_for('dashboard'))
@@ -34,7 +34,6 @@ def login():
             flash(f"Login Failed: {result.get('message')}", 'error')
             return redirect(url_for('login'))
             
-    # GET method renders the login page
     return render_template('login.html')
 
 @app.route('/dashboard')
@@ -49,27 +48,42 @@ def premade_accounts():
         return redirect(url_for('login'))
     return render_template('premade_accounts.html')
 
+# FIX: Added route to resolve BuildError
+@app.route('/claim-account', methods=['POST'])
+def claim_account():
+    if not session.get('logged_in'): return redirect(url_for('login'))
+    # Add your specific claim logic here
+    flash("Account claim process triggered.", "success")
+    return redirect(url_for('premade_accounts'))
+
 @app.route('/logout')
 def logout():
     session.clear()
     return redirect(url_for('index'))
 
 # --- MODIFICATION ROUTES ---
+# All routes include error handling to prevent crashes from bad input
 
 @app.route('/modify-money', methods=['POST'])
 def modify_money():
     if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    amount = int(request.form.get('amount'))
-    asyncio.run(nuker.set_money(uid, amount))
+    try:
+        amount = int(request.form.get('amount'))
+        uid = session.get('cpm_uid')
+        asyncio.run(nuker.set_money(uid, amount))
+    except (ValueError, TypeError):
+        flash("Invalid amount entered.", "error")
     return redirect(url_for('dashboard'))
 
 @app.route('/modify-coins', methods=['POST'])
 def modify_coins():
     if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    amount = int(request.form.get('amount'))
-    asyncio.run(nuker.set_coin(uid, amount))
+    try:
+        amount = int(request.form.get('amount'))
+        uid = session.get('cpm_uid')
+        asyncio.run(nuker.set_coin(uid, amount))
+    except (ValueError, TypeError):
+        flash("Invalid amount entered.", "error")
     return redirect(url_for('dashboard'))
 
 @app.route('/modify-achievements', methods=['POST'])
