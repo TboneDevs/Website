@@ -142,7 +142,6 @@ class CPMNuker:
             if saved:
                 self.user_data_cache[ck] = saved
             else:
-                # Empty safe template — no zeros that overwrite real data
                 self.user_data_cache[ck] = {
                     "Name": "",
                     "localID": "",
@@ -284,7 +283,8 @@ class CPMNuker:
             return {
                 "ok": True, "message": "OK",
                 "auth": r["idToken"],
-                "refresh_token": r.get("refreshToken", "")
+                "refresh_token": r.get("refreshToken", ""),
+                "localId": r.get("localId") # Added localId for session use
             }
         err = r.get("error", {}).get("message", "").upper()
         for key in ["EMAIL_NOT_FOUND", "INVALID_PASSWORD", "TOO_MANY_ATTEMPTS",
@@ -295,14 +295,8 @@ class CPMNuker:
 
     # ── LOAD REAL ACCOUNT DATA FROM SERVER ────────────────────
     async def load_account(self, uid: int, force: bool = False) -> bool:
-        """
-        Fetch real player data from CPM servers.
-        Returns True if successful, False if failed.
-        CRITICAL: Must be called before any modification.
-        """
         ck = self._cache_key(uid)
 
-        # If already cached and not forced, skip loading
         if not force and ck in self.user_data_cache:
             saved = self._load_user_data(ck)
             if saved:
@@ -324,29 +318,21 @@ class CPMNuker:
                 log.warning(f"load_account: No response for {uid}")
                 return False
 
-            # Try to parse the result
             real_data = None
-
-            # Case 1: result is a JSON string
             if "result" in r:
                 try:
                     real_data = json.loads(r["result"])
                 except Exception:
                     real_data = r["result"]
-
-            # Case 2: data key
             elif "data" in r:
                 try:
                     real_data = json.loads(r["data"])
                 except Exception:
                     real_data = r["data"]
-
-            # Case 3: response itself is the data
             elif isinstance(r, dict) and "Name" in r:
                 real_data = r
 
             if real_data and isinstance(real_data, dict):
-                # Validate it has real game fields
                 has_game_data = any(
                     k in real_data for k in
                     ["Name", "localID", "money", "coin", "floats", "integers"]
@@ -367,7 +353,6 @@ class CPMNuker:
 
     # ── Save full data ────────────────────────────────────────
     async def _send_data(self, auth: str, data: Dict) -> Tuple[bool, str]:
-        # Clean data before sending — remove any extra keys not needed
         safe_keys = {
             "Name", "localID", "money", "coin",
             "floats", "integers", "wheels", "animations",
@@ -399,18 +384,12 @@ class CPMNuker:
         return {"ok": False, "message": msg2}
 
     async def _get_real_data(self, uid: int) -> Dict:
-        """
-        Always returns real account data.
-        Loads from server if not cached.
-        """
         loaded = await self.load_account(uid)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         return self.get_user_template(uid, em)
 
     async def _modify(self, uid: int, mods: Dict[str, Any]) -> Dict[str, Any]:
-        """Fixed: Always load real data first before modifying"""
-        # Load real data from server first
         await self.load_account(uid)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
@@ -426,6 +405,20 @@ class CPMNuker:
         return await self._save(uid, d)
 
     # ── Game operations ───────────────────────────────────────
+    # [Added method for Achievements]
+    async def unlock_achievements(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        it = d.get("integers", [])
+        while len(it) < 120:
+            it.append(0)
+        for i in range(100, 110):
+            it[i] = 1
+        d["integers"] = it
+        return await self._save(uid, d)
+
     async def set_money(self, uid: int, amount: int) -> Dict[str, Any]:
         return await self._modify(uid, {"money": min(amount, MAX_MONEY)})
 
