@@ -1,28 +1,56 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-md mx-auto mt-16">
-    <div class="glass p-8 rounded-2xl border border-zinc-800 shadow-xl">
-        <h2 class="text-2xl font-bold mb-6 text-white text-center font-display">
-            Admin Login
-        </h2>
-        
-        <form method="POST" action="{{ url_for('login') }}" class="space-y-4">
+<div class="max-w-2xl mx-auto py-12">
+    <!-- Header -->
+    <div class="text-center mb-10">
+        <h1 class="text-4xl font-display font-semibold tracking-tighter">CPM Account Editor</h1>
+        <p class="mt-4 text-zinc-400">Modify your Car Parking Multiplayer account directly from the browser</p>
+    </div>
+
+    <!-- Security Warning -->
+    <div class="bg-red-950/40 border border-red-900/70 rounded-3xl p-6 mb-8">
+        <div class="flex gap-x-4">
+            <div class="flex-shrink-0">
+                <i class="fa-solid fa-exclamation-triangle text-red-400 text-3xl"></i>
+            </div>
+            <div class="text-sm">
+                <div class="font-semibold text-red-300 mb-1.5">SECURITY WARNING</div>
+                <ul class="space-y-1.5 text-red-300/90 text-[13px]">
+                    <li>• This tool will log into your CPM account using your email and password.</li>
+                    <li>• Your credentials are sent to CPM servers and temporarily processed here.</li>
+                    <li>• <strong>We do not store your password</strong> after the session ends.</li>
+                </ul>
+            </div>
+        </div>
+    </div>
+
+    <!-- Login Form -->
+    <div class="glass border border-zinc-800 rounded-3xl p-8">
+        <div class="mb-6">
+            <div class="font-semibold text-lg">Sign in with your CPM account</div>
+            <div class="text-sm text-zinc-400 mt-1">We'll load your current progress and let you modify it.</div>
+        </div>
+
+        <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
             <div>
-                <label class="block text-sm font-medium text-zinc-400 mb-1">Username/Email</label>
-                <input type="text" name="username" required 
-                       class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all">
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Email Address</label>
+                <input type="email" name="email" required 
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="you@gmail.com">
             </div>
             
             <div>
-                <label class="block text-sm font-medium text-zinc-400 mb-1">Password</label>
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Password</label>
                 <input type="password" name="password" required 
-                       class="w-full bg-zinc-950 border border-zinc-700 rounded-lg px-4 py-2 text-white focus:ring-2 focus:ring-emerald-500 focus:border-transparent outline-none transition-all">
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="••••••••">
             </div>
 
-            <button type="submit" 
-                    class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-2 px-4 rounded-lg transition-colors mt-4">
-                Sign In
+            <button type="submit"
+                    class="w-full mt-2 flex items-center justify-center gap-x-3 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 transition-all text-black font-semibold py-4 rounded-3xl text-sm tracking-wider">
+                <i class="fa-solid fa-sign-in-alt"></i>
+                <span>LOGIN &amp; LOAD ACCOUNT</span>
             </button>
         </form>
     </div>
