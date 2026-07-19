@@ -1,181 +1,100 @@
-#!/usr/bin/env python3
-"""
-TNNR CPM1 Webtool - Simplified Version
-"""
-
-import asyncio
+import time
+import json
 import os
-import uuid
-from flask import (
-    Flask, render_template, request, redirect, url_for,
-    flash, session, jsonify
-)
-from cpm_nuker import CPMNuker
+from flask import Flask, request, render_template, redirect, url_for
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-this-to-a-secure-random-string-in-production")
 
-nuker = CPMNuker()
+# File paths for persistent storage
+TRACKER_FILE = 'tracker.json'
+POOL_FILE = 'accounts_pool.json'
+HOURS_24_IN_SECONDS = 24 * 3600
 
-
-def get_web_uid() -> int:
-    if 'web_uid' not in session:
-        web_uid = str(uuid.uuid4().int)[:12]
-        session['web_uid'] = int(web_uid)
-        session['email'] = None
-    return session['web_uid']
-
-
-def get_email():
-    return session.get('email', 'Not logged in')
-
-
-def run_async(coro):
+def load_json(filepath, default_data):
+    """Loads JSON data silently, creating the file if it doesn't exist."""
+    if not os.path.exists(filepath):
+        save_json(filepath, default_data)
+        return default_data
     try:
-        return asyncio.run(coro)
-    except Exception as e:
-        print(f"[ERROR] {e}")
-        return {"ok": False, "message": str(e)}
+        with open(filepath, 'r') as f:
+            return json.load(f)
+    except:
+        return default_data 
 
+def save_json(filepath, data):
+    """Saves JSON data silently."""
+    try:
+        with open(filepath, 'w') as f:
+            json.dump(data, f, indent=4)
+    except:
+        pass 
 
 @app.route('/')
 def index():
-    return render_template('index.html', email=get_email())
-
-
-@app.route('/login', methods=['POST'])
-def login():
-    email = request.form.get('email', '').strip()
-    password = request.form.get('password', '').strip()
-
-    if not email or not password:
-        flash("Email and password are required.", "error")
-        return redirect(url_for('index'))
-
-    web_uid = get_web_uid()
-
-    result = run_async(nuker.account_login(email, password))
-    if not result.get("ok"):
-        msg = result.get("message", "LOGIN_FAILED")
-        flash(f"Login failed: {msg}", "error")
-        return redirect(url_for('index'))
-
-    nuker.save_token(web_uid, result["auth"], email, password, result.get("refresh_token", ""))
-    loaded = run_async(nuker.load_account(web_uid, force=True))
-
-    session['email'] = email
-    session['logged_in'] = True
-
-    if loaded:
-        flash(f"✅ Successfully logged in as {email}", "success")
-
-    # === Important instruction after login ===
-    flash(
-        "ℹ️ Important: To properly save changes, please logout of the game first, "
-        "then run hacks/presets here. Once the site shows 'successful', log back into the game.",
-        "info"
-    )
-
-    return redirect(url_for('dashboard'))
-
+    return render_template('index.html')
 
 @app.route('/dashboard')
 def dashboard():
-    if not session.get('logged_in'):
-        flash("Please log in first.", "error")
-        return redirect(url_for('index'))
+    return render_template('dashboard.html')
 
-    web_uid = get_web_uid()
-    email = session.get('email', 'Unknown')
+@app.route('/premade-accounts')
+def premade_accounts():
+    claim_tracker = load_json(TRACKER_FILE, {})
+    unclaimed_pool = load_json(POOL_FILE, [])
+    
+    client_ip = request.remote_addr
+    current_time = time.time()
+    
+    # Initialize new users
+    if client_ip not in claim_tracker:
+        claim_tracker[client_ip] = {'claimed': [], 'reset_time': current_time + HOURS_24_IN_SECONDS}
+        
+    # Reset timer if 24 hours have passed
+    if current_time >= claim_tracker[client_ip]['reset_time']:
+        claim_tracker[client_ip] = {'claimed': [], 'reset_time': current_time + HOURS_24_IN_SECONDS}
+        
+    save_json(TRACKER_FILE, claim_tracker)
+        
+    user_data = claim_tracker[client_ip]
+    claims_left = 5 - len(user_data['claimed'])
+    pool_empty = len(unclaimed_pool) == 0
+    
+    # Calculate exact time remaining
+    seconds_left = max(0, user_data['reset_time'] - current_time)
+    hours = int(seconds_left // 3600)
+    minutes = int((seconds_left % 3600) // 60)
+    time_left_str = f"{hours}h {minutes}m"
+    
+    return render_template('premade_accounts.html', 
+                           claimed_accounts=user_data['claimed'], 
+                           claims_left=claims_left, 
+                           pool_empty=pool_empty, 
+                           time_left_str=time_left_str)
 
-    try:
-        data = nuker.get_user_template(web_uid, email)
-    except:
-        data = {}
-
-    return render_template(
-        'dashboard.html',
-        email=email,
-        name=data.get('Name', 'Unknown'),
-        pid=data.get('localID', 'N/A'),
-        money=data.get('money', 0),
-        coin=data.get('coin', 0)
-    )
-
-
-@app.route('/action/<action>', methods=['POST'])
-def action(action):
-    if not session.get('logged_in'):
-        return jsonify({"ok": False, "message": "Not logged in"}), 401
-
-    web_uid = get_web_uid()
-    result = {"ok": False, "message": "Unknown action"}
-
-    # Money & Coins
-    if action == "set_money":
-        amount = int(request.form.get('amount', 0))
-        result = run_async(nuker.set_money(web_uid, amount))
-
-    elif action == "set_coin":
-        amount = int(request.form.get('amount', 0))
-        result = run_async(nuker.set_coin(web_uid, amount))
-
-    # Max Rank
-    elif action == "set_rank":
-        result = run_async(nuker.set_rank(web_uid))
-
-    # Complete All Levels
-    elif action == "complete_levels":
-        result = run_async(nuker.complete_all_levels(web_uid))
-
-    # === PRESETS ===
-    elif action == "preset_50m_30k":
-        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
-        r2 = run_async(nuker.set_coin(web_uid, 30_000))
-        result = {"ok": r1.get("ok") and r2.get("ok")}
-
-    elif action == "preset_50m_50k":
-        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
-        r2 = run_async(nuker.set_coin(web_uid, 50_000))
-        result = {"ok": r1.get("ok") and r2.get("ok")}
-
-    elif action == "preset_50m_100k":
-        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
-        r2 = run_async(nuker.set_coin(web_uid, 100_000))
-        result = {"ok": r1.get("ok") and r2.get("ok")}
-
-    elif action == "preset_50m_500k":
-        r1 = run_async(nuker.set_money(web_uid, 50_000_000))
-        r2 = run_async(nuker.set_coin(web_uid, 500_000))
-        result = {"ok": r1.get("ok") and r2.get("ok")}
-
-    if result.get("ok"):
-        flash(f"✅ {action.replace('_', ' ').title()} completed successfully!", "success")
-    else:
-        flash(f"❌ Failed: {result.get('message', 'Unknown error')}", "error")
-
-    return redirect(url_for('dashboard'))
-
-
-@app.route('/logout')
-def logout():
-    web_uid = session.get('web_uid')
-    if web_uid:
-        try:
-            nuker.delete_token(web_uid)
-        except:
-            pass
-    session.clear()
-    flash("You have been logged out.", "success")
-    return redirect(url_for('index'))
-
-
-@app.route('/health')
-def health():
-    return "✅ TNNR CPM1 Webtool is running", 200
-
+@app.route('/claim-account', methods=['POST'])
+def claim_account():
+    claim_tracker = load_json(TRACKER_FILE, {})
+    unclaimed_pool = load_json(POOL_FILE, [])
+    
+    client_ip = request.remote_addr
+    current_time = time.time()
+    
+    if client_ip not in claim_tracker:
+        claim_tracker[client_ip] = {'claimed': [], 'reset_time': current_time + HOURS_24_IN_SECONDS}
+        
+    user_data = claim_tracker[client_ip]
+    
+    # Dispense account if eligible and pool is not empty
+    if len(user_data['claimed']) < 5 and len(unclaimed_pool) > 0:
+        account = unclaimed_pool.pop(0) 
+        account['status'] = 'Claimed'
+        user_data['claimed'].append(account) 
+        
+        save_json(TRACKER_FILE, claim_tracker)
+        save_json(POOL_FILE, unclaimed_pool)
+        
+    return redirect(url_for('premade_accounts'))
 
 if __name__ == '__main__':
-    port = int(os.getenv("PORT", 8080))
-    print(f"🚀 Starting TNNR CPM1 Webtool on port {port}")
-    app.run(host="0.0.0.0", port=port, debug=False)
+    app.run(debug=True, host='0.0.0.0', port=5000)
+    
