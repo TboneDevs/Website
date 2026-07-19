@@ -1,9 +1,11 @@
 import time
 import json
 import os
-from flask import Flask, request, render_template, redirect, url_for
+from flask import Flask, request, render_template, redirect, url_for, session
 
 app = Flask(__name__)
+# A secret key is required to use the session object
+app.secret_key = 'your_secret_key_here' 
 
 # File paths for persistent storage
 TRACKER_FILE = 'tracker.json'
@@ -36,6 +38,12 @@ def index():
 @app.route('/dashboard')
 def dashboard():
     return render_template('dashboard.html')
+
+@app.route('/logout')
+def logout():
+    """Clears the session and redirects to the index."""
+    session.clear()
+    return redirect(url_for('index'))
 
 @app.route('/premade-accounts')
 def premade_accounts():
