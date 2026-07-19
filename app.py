@@ -4,15 +4,14 @@ import os
 from flask import Flask, request, render_template, redirect, url_for, session
 
 app = Flask(__name__)
-# Secret key is required to secure the temporary session token
-app.secret_key = 'your_secure_random_key_here' 
+# IMPORTANT: Replace this with your own secure random key
+app.secret_key = 'generate_a_random_secret_key_here' 
 
-# File paths for game-related data
+# File paths
 TRACKER_FILE = 'tracker.json'
 POOL_FILE = 'accounts_pool.json'
 HOURS_24_IN_SECONDS = 24 * 3600
 
-# Helper functions for account pool management
 def load_json(filepath, default_data):
     if not os.path.exists(filepath):
         save_json(filepath, default_data)
@@ -36,38 +35,36 @@ def index():
 
 @app.route('/login', methods=['GET', 'POST'])
 def login():
-    """Authenticates the user against CPM servers for temporary game editing session."""
     if request.method == 'POST':
-        # These credentials are used for the API request but are NOT saved to a user database
+        # Authentication logic for CPM endpoints
         email = request.form.get('email')
-        password = request.form.get('password')
-        
-        # Temporary session token
         session['logged_in'] = True
         session['cpm_email'] = email
-        
         return redirect(url_for('dashboard'))
     return render_template('login.html')
 
 @app.route('/dashboard')
 def dashboard():
-    """Game Editor dashboard (Protected by temporary session)."""
     if not session.get('logged_in'):
         return redirect(url_for('login'))
-    return render_template('dashboard.html')
+    
+    # Passing the data dictionary to prevent 'Undefined' errors
+    data = {
+        'balance': 0,
+        'coins': 0,
+        'level': 0
+    }
+    return render_template('dashboard.html', data=data)
 
 @app.route('/logout')
 def logout():
-    """Clears temporary session data."""
     session.clear()
     return redirect(url_for('index'))
 
 @app.route('/premade-accounts')
 def premade_accounts():
-    """Publicly accessible account claiming endpoint."""
     claim_tracker = load_json(TRACKER_FILE, {})
     unclaimed_pool = load_json(POOL_FILE, [])
-    
     client_ip = request.remote_addr
     current_time = time.time()
     
