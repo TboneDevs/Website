@@ -7,29 +7,6 @@
         
         <form action="{{ url_for('login') }}" method="POST" class="space-y-4">
             <div>
-                <label class="block text-sm font-medium text-zinc-400 mb-1">Email</label>
-                <input type="email" name="email" required 
-                       class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors">
-            </div>
-            
-            <div>
-                <label class="block text-sm font-medium text-zinc-400 mb-1">Password</label>
-                <input type="password" name="password" required 
-                       class="w-full bg-zinc-900 border border-zinc-700 rounded-xl px-4 py-3 text-white focus:outline-none focus:border-emerald-500 transition-colors">
-            </div>
-            
-            <button type="submit" 
-                    class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-all mt-4">
-                Login
-            </button>
-        </form>
-        
-        <div class="mt-6 text-center text-xs text-zinc-500">
-            <p>Authentication via secure server</p>
-        </div>
-    </div>
-</div>
-{% endblock %}
                 <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Email Address</label>
                 <input type="email" name="email" required 
                        class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
@@ -49,6 +26,10 @@
                 <span>LOGIN &amp; LOAD ACCOUNT</span>
             </button>
         </form>
+        
+        <div class="mt-6 text-center text-xs text-zinc-500">
+            <p>Authentication via secure server</p>
+        </div>
     </div>
 </div>
 {% endblock %}
