@@ -1,37 +1,59 @@
 {% extends 'base.html' %}
 
 {% block content %}
-<div class="max-w-4xl mx-auto py-12">
-    <div class="glass p-8 rounded-2xl border border-zinc-800">
-        <h1 class="text-2xl font-bold mb-2">Game Editor Dashboard</h1>
-        <p class="text-zinc-400 mb-8">Editing account: <span class="text-emerald-400">{{ session.get('cpm_email') }}</span></p>
-        
-        <!-- Example Stat Box -->
-        <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-            <div class="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
-                <div class="text-zinc-400 text-sm mb-1">Balance</div>
-                <div class="text-4xl font-semibold tabular-nums">
-                    {{ "{:,.0f}".format(data.balance | default(0)) }}
-                </div>
-            </div>
-            
-            <div class="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
-                <div class="text-zinc-400 text-sm mb-1">Coins</div>
-                <div class="text-4xl font-semibold tabular-nums">
-                    {{ "{:,.0f}".format(data.coins | default(0)) }}
-                </div>
-            </div>
+<div class="max-w-5xl mx-auto py-12">
+    <!-- Header -->
+    <div class="mb-8">
+        <h1 class="text-3xl font-bold font-display">Account Editor</h1>
+        <p class="text-zinc-400">Editing: <span class="text-emerald-400">{{ session.get('cpm_email') }}</span></p>
+    </div>
 
-            <div class="bg-zinc-900 p-6 rounded-xl border border-zinc-800">
-                <div class="text-zinc-400 text-sm mb-1">Level</div>
-                <div class="text-4xl font-semibold tabular-nums">
-                    {{ data.level | default(0) }}
-                </div>
-            </div>
+    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
+        <!-- Stats Overview -->
+        <div class="glass p-6 rounded-2xl border border-zinc-800">
+            <div class="text-zinc-400 text-sm mb-1">Money</div>
+            <div class="text-3xl font-semibold tabular-nums">$0</div>
         </div>
-        
+        <div class="glass p-6 rounded-2xl border border-zinc-800">
+            <div class="text-zinc-400 text-sm mb-1">Coins</div>
+            <div class="text-3xl font-semibold tabular-nums">0</div>
+        </div>
+        <div class="glass p-6 rounded-2xl border border-zinc-800">
+            <div class="text-zinc-400 text-sm mb-1">Level</div>
+            <div class="text-3xl font-semibold tabular-nums">0</div>
+        </div>
+    </div>
+
+    <!-- Tools Grid -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <!-- Edit Money Form -->
+        <form action="/modify-money" method="POST" class="glass p-6 rounded-2xl border border-zinc-800 space-y-4">
+            <h3 class="font-semibold text-lg flex items-center gap-2">
+                <i class="fa-solid fa-money-bill-wave text-emerald-400"></i> Modify Money
+            </h3>
+            <input type="number" name="amount" placeholder="Enter Amount" 
+                   class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500">
+            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-all">
+                Update Money
+            </button>
+        </form>
+
+        <!-- Edit Coins Form -->
+        <form action="/modify-coins" method="POST" class="glass p-6 rounded-2xl border border-zinc-800 space-y-4">
+            <h3 class="font-semibold text-lg flex items-center gap-2">
+                <i class="fa-solid fa-coins text-yellow-400"></i> Modify Coins
+            </h3>
+            <input type="number" name="amount" placeholder="Enter Coins" 
+                   class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500">
+            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-all">
+                Update Coins
+            </button>
+        </form>
+    </div>
+
+    <div class="mt-8">
         <a href="{{ url_for('logout') }}" class="text-zinc-500 hover:text-red-400 transition-colors text-sm">
-            <i class="fa-solid fa-sign-out-alt mr-2"></i>Logout
+            <i class="fa-solid fa-sign-out-alt mr-2"></i>Logout & Clear Session
         </a>
     </div>
 </div>
