@@ -39,6 +39,17 @@ def dashboard():
         return redirect(url_for('index'))
     return render_template('dashboard.html')
 
+# --- PREMADE ACCOUNTS ROUTE (ADDED) ---
+
+@app.route('/premade-accounts')
+def premade_accounts():
+    if not session.get('logged_in'): 
+        return redirect(url_for('index'))
+    # Ensure you have a 'premade_accounts.html' template in your templates folder
+    return render_template('premade_accounts.html')
+
+# --------------------------------------
+
 @app.route('/logout')
 def logout():
     session.clear()
