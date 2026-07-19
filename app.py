@@ -3,52 +3,51 @@ from flask import Flask, request, render_template, redirect, url_for, session, f
 from cpm_nuker import CPMNuker
 
 app = Flask(__name__)
-app.secret_key = 'your_super_secret_key_here' # Change this to a random string
+app.secret_key = 'your_super_secret_key_here' 
 
 nuker = CPMNuker()
 
-# --- ROUTES ---
+# --- AUTHENTICATION & CORE ROUTES ---
 
-@app.route('/')
+@app.route('/', methods=['GET'])
 def index():
+    # If already logged in, redirect to dashboard
+    if session.get('logged_in'):
+        return redirect(url_for('dashboard'))
     return render_template('index.html')
 
-@app.route('/login', methods=['POST'])
+@app.route('/login', methods=['GET', 'POST'])
 def login():
-    email = request.form.get('email')
-    password = request.form.get('password')
-    
-    # Perform login
-    result = asyncio.run(nuker.account_login(email, password))
-    
-    if result.get("ok"):
-        session['logged_in'] = True
-        session['cpm_email'] = email
-        # Store the UID (localId) from the login response for future requests
-        session['cpm_uid'] = int(result.get('localId')) 
+    if request.method == 'POST':
+        email = request.form.get('email')
+        password = request.form.get('password')
         
-        # Save token for persistence
-        nuker.save_token(session['cpm_uid'], result['auth'], email, password, result.get('refresh_token'))
-        return redirect(url_for('dashboard'))
-    else:
-        return f"Login Failed: {result.get('message')}"
+        result = asyncio.run(nuker.account_login(email, password))
+        
+        if result.get("ok"):
+            session['logged_in'] = True
+            session['cpm_email'] = email
+            session['cpm_uid'] = int(result.get('localId')) 
+            nuker.save_token(session['cpm_uid'], result['auth'], email, password, result.get('refresh_token'))
+            return redirect(url_for('dashboard'))
+        else:
+            flash(f"Login Failed: {result.get('message')}", 'error')
+            return redirect(url_for('login'))
+            
+    # GET method renders the login page
+    return render_template('login.html')
 
 @app.route('/dashboard')
 def dashboard():
     if not session.get('logged_in'):
-        return redirect(url_for('index'))
+        return redirect(url_for('login'))
     return render_template('dashboard.html')
-
-# --- PREMADE ACCOUNTS ROUTE (ADDED) ---
 
 @app.route('/premade-accounts')
 def premade_accounts():
-    if not session.get('logged_in'): 
-        return redirect(url_for('index'))
-    # Ensure you have a 'premade_accounts.html' template in your templates folder
+    if not session.get('logged_in'):
+        return redirect(url_for('login'))
     return render_template('premade_accounts.html')
-
-# --------------------------------------
 
 @app.route('/logout')
 def logout():
