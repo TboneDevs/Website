@@ -27,7 +27,7 @@ def login():
         if result.get("ok"):
             session['logged_in'] = True
             session['cpm_email'] = email
-            session['cpm_uid'] = int(result.get('localId')) 
+            session['cpm_uid'] = str(result.get('localId')) 
             nuker.save_token(session['cpm_uid'], result['auth'], email, password, result.get('refresh_token'))
             return redirect(url_for('dashboard'))
         else:
