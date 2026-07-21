@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""TNNR CPM1 Webtool - Inject into existing accounts (Malik logic)"""
+"""TNNR CPM1 Webtool - Original working logic + full unlocks"""
 
 import asyncio
 import os
@@ -8,7 +8,7 @@ from flask import Flask, render_template, request, redirect, url_for, flash, ses
 from cpm_nuker import CPMNuker
 
 app = Flask(__name__)
-app.secret_key = os.getenv("FLASK_SECRET_KEY", "tnnr-cpm1-webtool-secret-change-me")
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-this-to-a-secure-random-string-in-production")
 nuker = CPMNuker()
 
 
@@ -29,7 +29,7 @@ def run_async(coro):
 
 @app.route("/")
 def index():
-    return render_template("index.html")
+    return render_template("index.html", email=session.get("email", "Not logged in"))
 
 
 @app.route("/login", methods=["POST"])
@@ -52,8 +52,12 @@ def login():
     session["logged_in"] = True
 
     if loaded:
-        flash(f"✅ Logged in as {email}", "success")
-    flash("ℹ️ Logout of the game first, run unlocks here, then log back into the game.", "info")
+        flash(f"✅ Successfully logged in as {email}", "success")
+    flash(
+        "ℹ️ Important: Logout of the game first, then run unlocks here. "
+        "Once the site shows successful, log back into the game.",
+        "info",
+    )
     return redirect(url_for("dashboard"))
 
 
@@ -69,10 +73,12 @@ def dashboard():
         data = nuker.get_user_template(web_uid, email)
     except Exception:
         data = {}
+
     return render_template(
         "dashboard.html",
         email=email,
         name=data.get("Name", "Unknown"),
+        pid=data.get("localID", "N/A"),
         money=data.get("money", 0),
         coin=data.get("coin", 0),
     )
@@ -88,61 +94,98 @@ def action(action):
 
     try:
         if action == "set_money":
-            amount = int(request.form.get("amount", 0))
+            amount = int(request.form.get("amount", 0) or 0)
             result = run_async(nuker.set_money(web_uid, amount))
+
         elif action == "set_coin":
-            amount = int(request.form.get("amount", 0))
+            amount = int(request.form.get("amount", 0) or 0)
             result = run_async(nuker.set_coin(web_uid, amount))
+
         elif action == "set_race_wins":
-            amount = int(request.form.get("amount", 0))
+            amount = int(request.form.get("amount", 0) or 0)
             result = run_async(nuker.set_race_wins(web_uid, amount))
+
         elif action == "set_rank":
             result = run_async(nuker.set_rank(web_uid))
+
         elif action == "complete_levels":
             result = run_async(nuker.complete_all_levels(web_uid))
+
         elif action == "unlock_w16":
             result = run_async(nuker.unlock_w16(web_uid))
+
         elif action == "unlock_horns":
             result = run_async(nuker.unlock_horns(web_uid))
+
         elif action == "disable_damage":
             result = run_async(nuker.disable_damage(web_uid))
+
         elif action == "unlimited_fuel":
             result = run_async(nuker.unlimited_fuel(web_uid))
+
         elif action == "unlock_smoke":
             result = run_async(nuker.unlock_smoke(web_uid))
+
         elif action == "unlock_animations":
             result = run_async(nuker.unlock_animations(web_uid))
+
         elif action == "unlock_wheels":
             result = run_async(nuker.unlock_wheels(web_uid))
+
         elif action == "unlock_houses":
             result = run_async(nuker.unlock_houses(web_uid))
+
         elif action == "unlock_equipments_male":
             result = run_async(nuker.unlock_equipments_male(web_uid))
+
         elif action == "unlock_equipments_female":
             result = run_async(nuker.unlock_equipments_female(web_uid))
-        elif action == "full_unlock":
-            result = run_async(nuker.full_unlock(web_uid))
+
         elif action == "preset_50m_30k":
             r1 = run_async(nuker.set_money(web_uid, 50_000_000))
             r2 = run_async(nuker.set_coin(web_uid, 30_000))
             result = {"ok": r1.get("ok") and r2.get("ok")}
+
         elif action == "preset_50m_50k":
             r1 = run_async(nuker.set_money(web_uid, 50_000_000))
             r2 = run_async(nuker.set_coin(web_uid, 50_000))
             result = {"ok": r1.get("ok") and r2.get("ok")}
+
         elif action == "preset_50m_100k":
             r1 = run_async(nuker.set_money(web_uid, 50_000_000))
             r2 = run_async(nuker.set_coin(web_uid, 100_000))
             result = {"ok": r1.get("ok") and r2.get("ok")}
+
         elif action == "preset_50m_500k":
             r1 = run_async(nuker.set_money(web_uid, 50_000_000))
             r2 = run_async(nuker.set_coin(web_uid, 500_000))
             result = {"ok": r1.get("ok") and r2.get("ok")}
+
+        elif action == "full_unlock":
+            results = [
+                run_async(nuker.set_money(web_uid, 50_000_000)),
+                run_async(nuker.set_coin(web_uid, 30_000)),
+                run_async(nuker.set_race_wins(web_uid, 670000)),
+                run_async(nuker.set_rank(web_uid)),
+                run_async(nuker.complete_all_levels(web_uid)),
+                run_async(nuker.unlock_w16(web_uid)),
+                run_async(nuker.unlock_horns(web_uid)),
+                run_async(nuker.disable_damage(web_uid)),
+                run_async(nuker.unlimited_fuel(web_uid)),
+                run_async(nuker.unlock_smoke(web_uid)),
+                run_async(nuker.unlock_animations(web_uid)),
+                run_async(nuker.unlock_wheels(web_uid)),
+                run_async(nuker.unlock_houses(web_uid)),
+                run_async(nuker.unlock_equipments_male(web_uid)),
+                run_async(nuker.unlock_equipments_female(web_uid)),
+            ]
+            result = {"ok": all(r.get("ok") for r in results)}
+
     except Exception as e:
         result = {"ok": False, "message": str(e)}
 
     if result.get("ok"):
-        flash(f"✅ {action.replace('_', ' ').title()} completed!", "success")
+        flash(f"✅ {action.replace('_', ' ').title()} completed successfully!", "success")
     else:
         flash(f"❌ Failed: {result.get('message', 'Unknown error')}", "error")
     return redirect(url_for("dashboard"))
@@ -157,16 +200,16 @@ def logout():
         except Exception:
             pass
     session.clear()
-    flash("Logged out.", "success")
+    flash("You have been logged out.", "success")
     return redirect(url_for("index"))
 
 
 @app.route("/health")
 def health():
-    return "✅ TNNR CPM1 Webtool OK", 200
+    return "✅ TNNR CPM1 Webtool is running", 200
 
 
 if __name__ == "__main__":
     port = int(os.getenv("PORT", 8080))
-    print(f"🚀 TNNR CPM1 Webtool on port {port}")
+    print(f"🚀 Starting TNNR CPM1 Webtool on port {port}")
     app.run(host="0.0.0.0", port=port, debug=False)

@@ -2,14 +2,17 @@ import asyncio
 import aiohttp
 import json
 import os
+import re
 import sqlite3
 import time
 import logging
+from datetime import datetime
 from typing import Any, Dict, List, Optional, Tuple
 
 logging.basicConfig(level=logging.INFO)
 log = logging.getLogger("CPM-Nuker")
 
+# === CPM Server Constants (Required) ===
 FK = "AIzaSyBW1ZbMiUeDZHYUO2bY8Bfnf5rRgrQGPTM"
 SU = "https://europe-west1-cp-multiplayer.cloudfunctions.net/SavePlayerRecordsIOS1"
 LU = "https://europe-west1-cp-multiplayer.cloudfunctions.net/GetPlayerRecordsIOS1"
@@ -49,6 +52,15 @@ class CPMNuker:
                     saved_at   TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 )
             """)
+            c.execute("""
+                CREATE TABLE IF NOT EXISTS backups (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    user_id    INTEGER,
+                    label      TEXT,
+                    data_json  TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                )
+            """)
             c.commit()
 
     def _cache_key(self, uid: int, email: str = None) -> str:
@@ -59,6 +71,7 @@ class CPMNuker:
             return f"{uid}_{td['email']}"
         return str(uid)
 
+    # ── Token management ──────────────────────────────────────
     def save_token(self, uid: int, auth: str, email: str, pw: str = None, rt: str = None):
         exp = time.time() + 3600
         with sqlite3.connect(self.db_path) as c:
@@ -83,6 +96,12 @@ class CPMNuker:
             }
         return None
 
+    def get_token(self, uid: int) -> Optional[Dict]:
+        td = self.get_token_data(uid)
+        if td:
+            return {"auth_token": td["auth_token"], "email": td["email"]}
+        return None
+
     def get_auth_token(self, uid: int) -> Optional[str]:
         td = self.get_token_data(uid)
         return td["auth_token"] if td else None
@@ -91,11 +110,15 @@ class CPMNuker:
         exp = time.time() + 3600
         with sqlite3.connect(self.db_path) as c:
             if rt:
-                c.execute("UPDATE tokens SET auth_token=?, refresh_token=?, token_expires_at=? WHERE user_id=?",
-                          (auth, rt, exp, uid))
+                c.execute("""
+                    UPDATE tokens SET auth_token=?, refresh_token=?, token_expires_at=?
+                    WHERE user_id=?
+                """, (auth, rt, exp, uid))
             else:
-                c.execute("UPDATE tokens SET auth_token=?, token_expires_at=? WHERE user_id=?",
-                          (auth, exp, uid))
+                c.execute("""
+                    UPDATE tokens SET auth_token=?, token_expires_at=?
+                    WHERE user_id=?
+                """, (auth, exp, uid))
             c.commit()
 
     def delete_token(self, uid: int):
@@ -111,6 +134,7 @@ class CPMNuker:
             return True
         return td["token_expires_at"] < time.time()
 
+    # ── User data ──────────────────────────────────────────────
     def get_user_template(self, uid: int, email: str = None) -> Dict:
         ck = self._cache_key(uid, email)
         if ck not in self.user_data_cache:
@@ -118,11 +142,20 @@ class CPMNuker:
             if saved:
                 self.user_data_cache[ck] = saved
             else:
+                # Empty safe template — no zeros that overwrite real data
                 self.user_data_cache[ck] = {
-                    "Name": "", "localID": "", "money": 0, "coin": 0,
-                    "floats": [], "integers": [], "wheels": [], "animations": [],
-                    "personEquipmentsMale": {}, "personEquipmentsFemale": {},
-                    "carIDnStatus": {}, "LevelsDoneTime": []
+                    "Name": "",
+                    "localID": "",
+                    "money": 0,
+                    "coin": 0,
+                    "floats": [],
+                    "integers": [],
+                    "wheels": [],
+                    "animations": [],
+                    "personEquipmentsMale": {},
+                    "personEquipmentsFemale": {},
+                    "carIDnStatus": {},
+                    "LevelsDoneTime": []
                 }
         return self.user_data_cache[ck]
 
@@ -133,13 +166,17 @@ class CPMNuker:
 
     def _save_user_data(self, ck: str, email: str, data: Dict):
         with sqlite3.connect(self.db_path) as c:
-            c.execute("INSERT OR REPLACE INTO user_data (cache_key, email, data_json) VALUES (?,?,?)",
-                      (ck, email, json.dumps(data)))
+            c.execute("""
+                INSERT OR REPLACE INTO user_data (cache_key, email, data_json)
+                VALUES (?,?,?)
+            """, (ck, email, json.dumps(data)))
             c.commit()
 
     def _load_user_data(self, ck: str) -> Optional[Dict]:
         with sqlite3.connect(self.db_path) as c:
-            row = c.execute("SELECT data_json FROM user_data WHERE cache_key=?", (ck,)).fetchone()
+            row = c.execute("""
+                SELECT data_json FROM user_data WHERE cache_key=?
+            """, (ck,)).fetchone()
         if row:
             try:
                 return json.loads(row[0])
@@ -147,13 +184,44 @@ class CPMNuker:
                 pass
         return None
 
-    async def _request(self, url: str, payload: Dict = None, headers: Dict = None) -> Optional[Dict]:
+    def save_backup(self, uid: int, label: str, data: Dict):
+        with sqlite3.connect(self.db_path) as c:
+            c.execute(
+                "INSERT INTO backups (user_id,label,data_json) VALUES (?,?,?)",
+                (uid, label, json.dumps(data))
+            )
+            c.commit()
+
+    def get_backups(self, uid: int) -> List[Dict]:
+        with sqlite3.connect(self.db_path) as c:
+            rows = c.execute(
+                "SELECT id,label,created_at FROM backups WHERE user_id=? ORDER BY created_at DESC LIMIT 5",
+                (uid,)
+            ).fetchall()
+        return [{"id": r[0], "label": r[1], "time": r[2]} for r in rows]
+
+    def restore_backup(self, uid: int, backup_id: int) -> Optional[Dict]:
+        with sqlite3.connect(self.db_path) as c:
+            row = c.execute(
+                "SELECT data_json FROM backups WHERE id=? AND user_id=?",
+                (backup_id, uid)
+            ).fetchone()
+        if row:
+            try:
+                return json.loads(row[0])
+            except Exception:
+                pass
+        return None
+
+    # ── HTTP ──────────────────────────────────────────────────
+    async def _request(self, url: str, payload: Dict = None,
+                       headers: Dict = None, params: Dict = None) -> Optional[Dict]:
         try:
             timeout = aiohttp.ClientTimeout(total=30)
             connector = aiohttp.TCPConnector(ssl=False)
             h = {**self.base_headers, **(headers or {})}
             async with aiohttp.ClientSession(timeout=timeout, connector=connector) as s:
-                async with s.post(url, json=payload or {}, headers=h) as r:
+                async with s.post(url, json=payload or {}, headers=h, params=params or {}) as r:
                     text = await r.text()
                     try:
                         return json.loads(text)
@@ -163,6 +231,7 @@ class CPMNuker:
             log.error(f"HTTP error: {e}")
             return None
 
+    # ── Token refresh ─────────────────────────────────────────
     async def _refresh_token(self, uid: int) -> Tuple[bool, str]:
         td = self.get_token_data(uid)
         if not td:
@@ -170,8 +239,6 @@ class CPMNuker:
         rt = td.get("refresh_token")
         em = td.get("email")
         pw = td.get("password")
-
-
 
         if rt:
             r = await self._request(
@@ -187,6 +254,7 @@ class CPMNuker:
             if res.get("ok"):
                 self.update_token(uid, res["auth"], res.get("refresh_token", ""))
                 return True, "OK"
+
         return False, "REFRESH_FAILED"
 
     async def get_valid_token(self, uid: int) -> Tuple[bool, str, str]:
@@ -199,6 +267,7 @@ class CPMNuker:
             return True, "OK", td["auth_token"]
         return False, "NO_TOKEN", ""
 
+    # ── Login ─────────────────────────────────────────────────
     async def account_login(self, email: str, password: str) -> Dict[str, Any]:
         url = f"https://www.googleapis.com/identitytoolkit/v3/relyingparty/verifyPassword?key={FK}"
         r = await self._request(url, {
@@ -208,6 +277,7 @@ class CPMNuker:
         }, headers={
             "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 12; SM-A025F Build/SP1A.210812.016)"
         })
+
         if not r:
             return {"ok": False, "message": "NETWORK_ERROR"}
         if "idToken" in r:
@@ -223,8 +293,16 @@ class CPMNuker:
                 return {"ok": False, "message": key}
         return {"ok": False, "message": "LOGIN_FAILED"}
 
+    # ── LOAD REAL ACCOUNT DATA FROM SERVER ────────────────────
     async def load_account(self, uid: int, force: bool = False) -> bool:
+        """
+        Fetch real player data from CPM servers.
+        Returns True if successful, False if failed.
+        CRITICAL: Must be called before any modification.
+        """
         ck = self._cache_key(uid)
+
+        # If already cached and not forced, skip loading
         if not force and ck in self.user_data_cache:
             saved = self._load_user_data(ck)
             if saved:
@@ -236,38 +314,60 @@ class CPMNuker:
             return False
 
         try:
-            r = await self._request(LU, {"data": json.dumps({})}, {"Authorization": f"Bearer {auth}"})
+            r = await self._request(
+                LU,
+                {"data": json.dumps({})},
+                {"Authorization": f"Bearer {auth}"}
+            )
+
             if not r:
+                log.warning(f"load_account: No response for {uid}")
                 return False
 
+            # Try to parse the result
             real_data = None
+
+            # Case 1: result is a JSON string
             if "result" in r:
                 try:
-                    real_data = json.loads(r["result"]) if isinstance(r["result"], str) else r["result"]
+                    real_data = json.loads(r["result"])
                 except Exception:
                     real_data = r["result"]
+
+            # Case 2: data key
             elif "data" in r:
                 try:
-                    real_data = json.loads(r["data"]) if isinstance(r["data"], str) else r["data"]
+                    real_data = json.loads(r["data"])
                 except Exception:
                     real_data = r["data"]
+
+            # Case 3: response itself is the data
             elif isinstance(r, dict) and "Name" in r:
                 real_data = r
 
             if real_data and isinstance(real_data, dict):
-                has_game_data = any(k in real_data for k in ["Name", "localID", "money", "coin", "floats", "integers"])
+                # Validate it has real game fields
+                has_game_data = any(
+                    k in real_data for k in
+                    ["Name", "localID", "money", "coin", "floats", "integers"]
+                )
                 if has_game_data:
                     td = self.get_token_data(uid)
                     em = td.get("email") if td else None
                     self.save_user_template(uid, real_data, em)
-                    log.info(f"load_account: Loaded real data for {uid}")
+                    log.info(f"load_account: Loaded real data for {uid} ✔")
                     return True
-            return False
-        except Exception as e:
-            log.error(f"load_account error: {e}")
+
+            log.warning(f"load_account: Could not parse real data for {uid}")
             return False
 
+        except Exception as e:
+            log.error(f"load_account error for {uid}: {e}")
+            return False
+
+    # ── Save full data ────────────────────────────────────────
     async def _send_data(self, auth: str, data: Dict) -> Tuple[bool, str]:
+        # Clean data before sending — remove any extra keys not needed
         safe_keys = {
             "Name", "localID", "money", "coin",
             "floats", "integers", "wheels", "animations",
@@ -275,7 +375,12 @@ class CPMNuker:
             "carIDnStatus", "LevelsDoneTime"
         }
         clean_data = {k: v for k, v in data.items() if k in safe_keys}
-        r = await self._request(SU, {"data": json.dumps(clean_data)}, {"Authorization": f"Bearer {auth}"})
+
+        r = await self._request(
+            SU,
+            {"data": json.dumps(clean_data)},
+            {"Authorization": f"Bearer {auth}"}
+        )
         if r:
             rs = str(r)
             if '"result":1' in rs or "'result': 1" in rs or "1" in rs:
@@ -293,36 +398,232 @@ class CPMNuker:
             return {"ok": True}
         return {"ok": False, "message": msg2}
 
+    async def _get_real_data(self, uid: int) -> Dict:
+        """
+        Always returns real account data.
+        Loads from server if not cached.
+        """
+        loaded = await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        return self.get_user_template(uid, em)
+
     async def _modify(self, uid: int, mods: Dict[str, Any]) -> Dict[str, Any]:
+        """Fixed: Always load real data first before modifying"""
+        # Load real data from server first
         await self.load_account(uid)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
+
         for k, v in mods.items():
             if k == "money":
-                v = min(int(v), MAX_MONEY)
+                v = min(v, MAX_MONEY)
             if k == "coin":
-                v = min(int(v), MAX_COIN)
+                v = min(v, MAX_COIN)
             d[k] = v
+
         return await self._save(uid, d)
 
-    # ── Public operations ──────────────────────────────────────
+    # ── Game operations ───────────────────────────────────────
     async def set_money(self, uid: int, amount: int) -> Dict[str, Any]:
         return await self._modify(uid, {"money": min(amount, MAX_MONEY)})
 
     async def set_coin(self, uid: int, amount: int) -> Dict[str, Any]:
         return await self._modify(uid, {"coin": min(amount, MAX_COIN)})
 
+    async def set_player_name(self, uid: int, name: str) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        d["Name"] = name
+        return await self._save(uid, d)
+
+    async def set_player_id(self, uid: int, pid: str) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        d["localID"] = pid.upper()
+        return await self._save(uid, d)
+
     async def set_race_wins(self, uid: int, amount: int) -> Dict[str, Any]:
         await self.load_account(uid)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
+        fl = d.get("floats", [])
         while len(fl) < 9:
             fl.append(0.0)
         fl[8] = float(amount)
         d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def set_race_loses(self, uid: int, amount: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 10:
+            fl.append(0.0)
+        fl[9] = float(amount)
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def unlock_w16(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 33:
+            fl.append(0.0)
+        fl[32] = 1.0
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def unlock_horns(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 32:
+            fl.append(0.0)
+        for i in [27, 28, 29, 30, 31]:
+            fl[i] = 1.0
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def disable_damage(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 35:
+            fl.append(0.0)
+        fl[34] = 1.0
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def unlimited_fuel(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 4:
+            fl.append(0.0)
+        fl[3] = 1.0
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def unlock_smoke(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        fl = d.get("floats", [])
+        while len(fl) < 34:
+            fl.append(0.0)
+        fl[33] = 1.0
+        d["floats"] = fl
+        return await self._save(uid, d)
+
+    async def unlock_animations(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        existing = d.get("animations", [])
+        d["animations"] = list(set(existing + list(range(301))))
+        return await self._save(uid, d)
+
+    async def unlock_wheels(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        existing_wheels = d.get("wheels", [])
+        new_wheels = list(range(73, 221))
+        d["wheels"] = list(set(existing_wheels + new_wheels))
+        it = d.get("integers", [])
+        while len(it) < 113:
+            it.append(0)
+        for i in [0, 1, 2, 3, 4, 5, 110, 111, 112]:
+            it[i] = 1
+        d["integers"] = it
+        return await self._save(uid, d)
+
+    async def unlock_houses(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        it = d.get("integers", [])
+        while len(it) < 113:
+            it.append(0)
+        for i in [8, 110, 111, 112]:
+            it[i] = 1
+        d["integers"] = it
+        return await self._save(uid, d)
+
+    async def complete_all_levels(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        lvl = [0] + [120 if i == 43 else 1 for i in range(1, 110)]
+        d["LevelsDoneTime"] = lvl
+        return await self._save(uid, d)
+
+    async def unlock_equipments_male(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        eq = {
+            "Gender": 0,
+            "bag": list(range(101)),
+            "beard": list(range(6, 21)) + [100],
+            "cap": list(range(3, 64)),
+            "face": [0, 1, 2, 100],
+            "glasses": list(range(10)) + [100],
+            "gloves": list(range(6)) + [100],
+            "hair": list(range(3, 20)) + [100],
+            "mask": list(range(3, 9)) + [100],
+            "pants": list(range(26)),
+            "shoes": list(range(31)),
+            "top": list(range(2, 109)),
+            "SelectedEquipments": [-1, 10, 19, 41, 100, 4, 20, 9, 22, 21, 74]
+        }
+        d["personEquipmentsMale"] = eq
+        return await self._save(uid, d)
+
+    async def unlock_equipments_female(self, uid: int) -> Dict[str, Any]:
+        await self.load_account(uid)
+        td = self.get_token_data(uid)
+        em = td.get("email") if td else None
+        d = self.get_user_template(uid, em)
+        eq = {
+            "Gender": 1,
+            "bag": list(range(6)),
+            "beard": [],
+            "cap": list(range(3, 41)),
+            "face": [0],
+            "glasses": list(range(10)),
+            "gloves": [1],
+            "hair": [0, 7, 8, 9, 10],
+            "mask": list(range(3, 8)),
+            "pants": list(range(12)),
+            "shoes": list(range(3, 15)),
+            "top": list(range(5, 80)),
+            "SelectedEquipments": [0, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1]
+        }
+        d["personEquipmentsFemale"] = eq
         return await self._save(uid, d)
 
     async def set_rank(self, uid: int) -> Dict[str, Any]:
@@ -345,172 +646,51 @@ class CPMNuker:
             "block_post": 1e10, "push_ups": 1e12,
             "burnt_tire": 1e10, "passanger_distance": 1e8
         }}
-        r = await self._request(RU, {"data": json.dumps(rd)}, {"Authorization": f"Bearer {auth}"})
+        r = await self._request(
+            RU,
+            {"data": json.dumps(rd)},
+            {"Authorization": f"Bearer {auth}"}
+        )
         if r and "1" in str(r):
             return {"ok": True}
         return {"ok": False, "message": "RANK_FAILED"}
 
-    async def complete_all_levels(self, uid: int) -> Dict[str, Any]:
+    async def fix_account_data(self, uid: int) -> Dict[str, Any]:
         await self.load_account(uid)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
-        d["LevelsDoneTime"] = [0] + [120 if i == 43 else 1 for i in range(1, 110)]
-        return await self._save(uid, d)
 
-    async def unlock_w16(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
-        while len(fl) < 33: fl.append(0.0)
-        fl[32] = 1.0
-        d["floats"] = fl
-        return await self._save(uid, d)
+        fl = (d.get("floats", []))[:54]
+        while len(fl) < 54:
+            fl.append(0.0)
+        bugs = 0
+        fixed_fl = []
+        for v in fl:
+            if v == 1 or v == 1.0:
+                fixed_fl.append(1.0)
+            elif isinstance(v, (int, float)) and v > 1:
+                bugs += 1
+                fixed_fl.append(0.0)
+            else:
+                fixed_fl.append(float(v) if v else 0.0)
 
-    async def unlock_horns(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
-        while len(fl) < 32: fl.append(0.0)
-        for i in [27, 28, 29, 30, 31]:
-            fl[i] = 1.0
-        d["floats"] = fl
-        return await self._save(uid, d)
+        it = (d.get("integers", []))[:120]
+        while len(it) < 120:
+            it.append(0)
+        fixed_it = []
+        for v in it:
+            if v == 1:
+                fixed_it.append(1)
+            elif isinstance(v, (int, float)) and v > 1:
+                bugs += 1
+                fixed_it.append(0)
+            else:
+                fixed_it.append(int(v) if v else 0)
 
-    async def disable_damage(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
-        while len(fl) < 35: fl.append(0.0)
-        fl[34] = 1.0
-        d["floats"] = fl
-        return await self._save(uid, d)
-
-    async def unlimited_fuel(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
-        while len(fl) < 4: fl.append(0.0)
-        fl[3] = 1.0
-        d["floats"] = fl
-        return await self._save(uid, d)
-
-    async def unlock_smoke(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        fl = list(d.get("floats", []))
-        while len(fl) < 34: fl.append(0.0)
-        fl[33] = 1.0
-        d["floats"] = fl
-        return await self._save(uid, d)
-
-    async def unlock_animations(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        existing = d.get("animations", []) or []
-        d["animations"] = list(set(existing + list(range(301))))
-        return await self._save(uid, d)
-
-    async def unlock_wheels(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        existing = d.get("wheels", []) or []
-        d["wheels"] = list(set(existing + list(range(73, 221))))
-        it = list(d.get("integers", []))
-        while len(it) < 113: it.append(0)
-        for i in [0, 1, 2, 3, 4, 5, 110, 111, 112]:
-            it[i] = 1
-        d["integers"] = it
-        return await self._save(uid, d)
-
-    async def unlock_houses(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        it = list(d.get("integers", []))
-        while len(it) < 113: it.append(0)
-        for i in [8, 110, 111, 112]:
-            it[i] = 1
-        d["integers"] = it
-        return await self._save(uid, d)
-
-    async def unlock_equipments_male(self, uid: int) -> Dict[str, Any]:
-        """Headless style - no beard/cap ownership, keep original SelectedEquipments"""
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        d["personEquipmentsMale"] = {
-            "Gender": 0,
-            "bag": list(range(101)),
-            "beard": [],
-            "cap": [],
-            "face": [0, 1, 2, 100],
-            "glasses": list(range(10)) + [100],
-            "gloves": list(range(6)) + [100],
-            "hair": list(range(3, 20)) + [100],
-            "mask": list(range(3, 9)) + [100],
-            "pants": list(range(26)),
-            "shoes": list(range(31)),
-            "top": list(range(2, 109)),
-            "SelectedEquipments": [-1, 10, 19, 41, 100, 4, 20, 9, 22, 21, 74]
-        }
-        return await self._save(uid, d)
-
-    async def unlock_equipments_female(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
-        td = self.get_token_data(uid)
-        em = td.get("email") if td else None
-        d = self.get_user_template(uid, em)
-        d["personEquipmentsFemale"] = {
-            "Gender": 1,
-            "bag": list(range(6)),
-            "beard": [],
-            "cap": [],
-            "face": [0],
-            "glasses": list(range(10)),
-            "gloves": [1],
-            "hair": [0, 7, 8, 9, 10],
-            "mask": list(range(3, 8)),
-            "pants": list(range(12)),
-            "shoes": list(range(3, 15)),
-            "top": list(range(5, 80)),
-            "SelectedEquipments": [0, 0, -1, -1, -1, -1, -1, -1, 0, -1, -1]
-        }
-        return await self._save(uid, d)
-
-    async def full_unlock(self, uid: int) -> Dict[str, Any]:
-        """Apply everything like the generator"""
-        results = []
-        results.append(await self.set_money(uid, 50_000_000))
-        results.append(await self.set_coin(uid, 30_000))
-        results.append(await self.set_race_wins(uid, 670000))
-        results.append(await self.set_rank(uid))
-        results.append(await self.complete_all_levels(uid))
-        results.append(await self.unlock_w16(uid))
-        results.append(await self.unlock_horns(uid))
-        results.append(await self.disable_damage(uid))
-        results.append(await self.unlimited_fuel(uid))
-        results.append(await self.unlock_smoke(uid))
-        results.append(await self.unlock_animations(uid))
-        results.append(await self.unlock_wheels(uid))
-        results.append(await self.unlock_houses(uid))
-        results.append(await self.unlock_equipments_male(uid))
-        results.append(await self.unlock_equipments_female(uid))
-        ok = all(r.get("ok") for r in results)
-        return {"ok": ok, "message": "FULL_UNLOCK_DONE" if ok else "PARTIAL_FAIL"}
+        d["floats"] = fixed_fl
+        d["integers"] = fixed_it
+        result = await self._save(uid, d)
+        if result.get("ok"):
+            return {"ok": True, "bugs_fixed": bugs}
+        return {"ok": False, "message": "FIX_FAILED"}
