@@ -1,60 +1,257 @@
-{% extends 'base.html' %}
+{% extends "base.html" %}
 
 {% block content %}
-<div class="max-w-5xl mx-auto py-12">
+<div class="max-w-5xl mx-auto">
+
+    <!-- Informational Banner -->
+    <div class="mb-6 px-5 py-4 rounded-3xl text-sm bg-zinc-900 border border-zinc-700 text-zinc-300">
+        <div class="flex items-start gap-x-3">
+            <i class="fa-solid fa-info-circle mt-0.5 text-emerald-400"></i>
+            <div>
+                <strong>All functions work.</strong> Logout of the game first, run hacks here, then log back into the game. 
+                Stats update after the first successful action.
+            </div>
+        </div>
+    </div>
+
     <!-- Header -->
-    <div class="mb-8">
-        <h1 class="text-3xl font-bold font-display">Account Editor</h1>
-        <p class="text-zinc-400">Editing: <span class="text-emerald-400">{{ session.get('cpm_email') }}</span></p>
-    </div>
-
-    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-10">
-        <!-- Stats Overview -->
-        <div class="glass p-6 rounded-2xl border border-zinc-800">
-            <div class="text-zinc-400 text-sm mb-1">Money</div>
-            <div class="text-3xl font-semibold tabular-nums">$0</div>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-8">
+        <div>
+            <h1 class="text-4xl font-display font-semibold tracking-tighter">Dashboard</h1>
+            <p class="text-zinc-400 mt-1">Logged in as <span class="font-medium text-white">{{ email }}</span></p>
+            {% if name and name != 'Unknown' %}
+            <p class="text-sm text-zinc-500">In-game name: <span class="text-emerald-400">{{ name }}</span></p>
+            {% endif %}
         </div>
-        <div class="glass p-6 rounded-2xl border border-zinc-800">
-            <div class="text-zinc-400 text-sm mb-1">Coins</div>
-            <div class="text-3xl font-semibold tabular-nums">0</div>
-        </div>
-        <div class="glass p-6 rounded-2xl border border-zinc-800">
-            <div class="text-zinc-400 text-sm mb-1">Level</div>
-            <div class="text-3xl font-semibold tabular-nums">0</div>
-        </div>
-    </div>
-
-    <!-- Tools Grid -->
-    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-        <!-- Edit Money Form -->
-        <form action="/modify-money" method="POST" class="glass p-6 rounded-2xl border border-zinc-800 space-y-4">
-            <h3 class="font-semibold text-lg flex items-center gap-2">
-                <i class="fa-solid fa-money-bill-wave text-emerald-400"></i> Modify Money
-            </h3>
-            <input type="number" name="amount" placeholder="Enter Amount" 
-                   class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500">
-            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-all">
-                Update Money
-            </button>
-        </form>
-
-        <!-- Edit Coins Form -->
-        <form action="/modify-coins" method="POST" class="glass p-6 rounded-2xl border border-zinc-800 space-y-4">
-            <h3 class="font-semibold text-lg flex items-center gap-2">
-                <i class="fa-solid fa-coins text-yellow-400"></i> Modify Coins
-            </h3>
-            <input type="number" name="amount" placeholder="Enter Coins" 
-                   class="w-full bg-zinc-950 border border-zinc-700 rounded-xl px-4 py-3 outline-none focus:border-emerald-500">
-            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-zinc-950 font-bold py-3 rounded-xl transition-all">
-                Update Coins
-            </button>
-        </form>
-    </div>
-
-    <div class="mt-8">
-        <a href="{{ url_for('logout') }}" class="text-zinc-500 hover:text-red-400 transition-colors text-sm">
-            <i class="fa-solid fa-sign-out-alt mr-2"></i>Logout & Clear Session
+        <a href="{{ url_for('logout') }}" 
+           class="flex items-center justify-center gap-x-2 px-5 h-11 rounded-3xl border border-zinc-700 hover:bg-zinc-900 text-sm font-medium transition-colors">
+            <i class="fa-solid fa-sign-out-alt"></i>
+            <span>Logout</span>
         </a>
     </div>
+
+    <!-- Current Stats -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <div class="glass border border-zinc-800 rounded-3xl p-6">
+            <div class="text-xs tracking-widest text-zinc-500 mb-1">MONEY</div>
+            <div class="text-4xl font-semibold tabular-nums text-emerald-400">${{ "{:,.0f}".format(money) }}</div>
+        </div>
+        <div class="glass border border-zinc-800 rounded-3xl p-6">
+            <div class="text-xs tracking-widest text-zinc-500 mb-1">COINS</div>
+            <div class="text-4xl font-semibold tabular-nums text-amber-400">{{ "{:,.0f}".format(coin) }}</div>
+        </div>
+    </div>
+
+    <!-- FULL UNLOCK PRESET -->
+    <div class="mb-8">
+        <form action="{{ url_for('action', action='full_unlock') }}" method="POST">
+            <button type="submit" 
+                    class="w-full bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-400 hover:to-teal-400 text-black font-bold py-5 px-6 rounded-3xl text-lg shadow-lg shadow-emerald-500/20 transition-all">
+                🚀 FULL UNLOCK (Everything)
+                <span class="block text-sm font-normal opacity-80 mt-1">50M Cash + 30K Coins + King + 670K Wins + All Features</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Money Section -->
+    <div class="glass border border-zinc-800 rounded-3xl p-6 mb-6">
+        <div class="flex items-center gap-x-3 mb-5">
+            <i class="fa-solid fa-dollar-sign text-emerald-400 text-2xl"></i>
+            <div class="font-semibold text-xl">Money</div>
+        </div>
+        
+        <form action="{{ url_for('action', action='set_money') }}" method="POST" class="space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {% for amt in [1000000, 5000000, 10000000, 25000000, 50000000] %}
+                <button type="submit" name="amount" value="{{ amt }}"
+                        class="py-3 rounded-2xl border border-zinc-700 hover:bg-zinc-800 hover:border-emerald-500/50 transition-colors text-sm font-medium">
+                    ${{ "{:,.0f}".format(amt / 1000000) }}M
+                </button>
+                {% endfor %}
+            </div>
+            <div class="flex gap-3">
+                <input type="number" name="amount" placeholder="Custom amount" min="0" max="50000000"
+                       class="flex-1 bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-2xl px-4 py-3 text-sm outline-none">
+                <button type="submit" class="px-6 bg-emerald-500 hover:bg-emerald-600 text-black font-semibold rounded-2xl text-sm">
+                    Set Custom
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Coins Section -->
+    <div class="glass border border-zinc-800 rounded-3xl p-6 mb-6">
+        <div class="flex items-center gap-x-3 mb-5">
+            <i class="fa-solid fa-coins text-amber-400 text-2xl"></i>
+            <div class="font-semibold text-xl">Coins</div>
+        </div>
+        
+        <form action="{{ url_for('action', action='set_coin') }}" method="POST" class="space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-2">
+                {% for amt in [10000, 30000, 50000, 100000, 500000] %}
+                <button type="submit" name="amount" value="{{ amt }}"
+                        class="py-3 rounded-2xl border border-zinc-700 hover:bg-zinc-800 hover:border-amber-500/50 transition-colors text-sm font-medium">
+                    {{ "{:,.0f}".format(amt / 1000) }}K
+                </button>
+                {% endfor %}
+            </div>
+            <div class="flex gap-3">
+                <input type="number" name="amount" placeholder="Custom amount" min="0" max="500000"
+                       class="flex-1 bg-zinc-900 border border-zinc-700 focus:border-amber-500 rounded-2xl px-4 py-3 text-sm outline-none">
+                <button type="submit" class="px-6 bg-amber-500 hover:bg-amber-600 text-black font-semibold rounded-2xl text-sm">
+                    Set Custom
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Race Wins -->
+    <div class="glass border border-zinc-800 rounded-3xl p-6 mb-6">
+        <div class="flex items-center gap-x-3 mb-5">
+            <i class="fa-solid fa-flag-checkered text-purple-400 text-2xl"></i>
+            <div class="font-semibold text-xl">Race Wins</div>
+        </div>
+        
+        <form action="{{ url_for('action', action='set_race_wins') }}" method="POST" class="space-y-4">
+            <div class="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {% for amt in [10000, 100000, 670000, 1000000] %}
+                <button type="submit" name="amount" value="{{ amt }}"
+                        class="py-3 rounded-2xl border border-zinc-700 hover:bg-zinc-800 hover:border-purple-500/50 transition-colors text-sm font-medium">
+                    {{ "{:,.0f}".format(amt) }}
+                </button>
+                {% endfor %}
+            </div>
+            <div class="flex gap-3">
+                <input type="number" name="amount" placeholder="Custom race wins" min="0"
+                       class="flex-1 bg-zinc-900 border border-zinc-700 focus:border-purple-500 rounded-2xl px-4 py-3 text-sm outline-none">
+                <button type="submit" class="px-6 bg-purple-500 hover:bg-purple-600 text-white font-semibold rounded-2xl text-sm">
+                    Set Custom
+                </button>
+            </div>
+        </form>
+    </div>
+
+    <!-- Presets -->
+    <div class="glass border border-zinc-800 rounded-3xl p-6 mb-6">
+        <div class="font-semibold text-xl mb-5">Quick Presets</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <form action="{{ url_for('action', action='preset_50m_30k') }}" method="POST">
+                <button type="submit" class="w-full text-left p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors">
+                    <div class="font-semibold">50M Cash + 30K Coins</div>
+                    <div class="text-xs text-zinc-400 mt-1">Best for World Sale</div>
+                </button>
+            </form>
+            <form action="{{ url_for('action', action='preset_50m_50k') }}" method="POST">
+                <button type="submit" class="w-full text-left p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors">
+                    <div class="font-semibold">50M Cash + 50K Coins</div>
+                </button>
+            </form>
+            <form action="{{ url_for('action', action='preset_50m_100k') }}" method="POST">
+                <button type="submit" class="w-full text-left p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors">
+                    <div class="font-semibold">50M Cash + 100K Coins</div>
+                </button>
+            </form>
+            <form action="{{ url_for('action', action='preset_50m_500k') }}" method="POST">
+                <button type="submit" class="w-full text-left p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors">
+                    <div class="font-semibold">50M Cash + 500K Coins</div>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Rank & Levels -->
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+        <form action="{{ url_for('action', action='set_rank') }}" method="POST">
+            <button type="submit" class="w-full flex items-center justify-center gap-x-3 p-5 rounded-3xl border border-zinc-700 hover:bg-zinc-900 hover:border-yellow-500/40 transition-colors">
+                <i class="fa-solid fa-crown text-yellow-400 text-xl"></i>
+                <span class="font-medium">👑 Set King Rank</span>
+            </button>
+        </form>
+        <form action="{{ url_for('action', action='complete_levels') }}" method="POST">
+            <button type="submit" class="w-full flex items-center justify-center gap-x-3 p-5 rounded-3xl border border-zinc-700 hover:bg-zinc-900 hover:border-blue-500/40 transition-colors">
+                <i class="fa-solid fa-flag-checkered text-blue-400 text-xl"></i>
+                <span class="font-medium">🏆 Complete All Levels</span>
+            </button>
+        </form>
+    </div>
+
+    <!-- Individual Unlocks -->
+    <div class="glass border border-zinc-800 rounded-3xl p-6 mb-6">
+        <div class="font-semibold text-xl mb-5">Individual Unlocks</div>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+
+            <form action="{{ url_for('action', action='unlock_w16') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-engine text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">W16 Engine</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='disable_damage') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-shield text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">No Engine Damage</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlimited_fuel') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-gas-pump text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Unlimited Fuel</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_smoke') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-smog text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Unlock Smoke</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_horns') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-bullhorn text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Unlock Horns</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_animations') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-person-walking text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Full Animations</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_wheels') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-circle text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Full Wheels</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_houses') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-house text-emerald-400 w-5"></i>
+                    <span class="font-medium text-sm">Unlock Houses</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_equipments_male') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-mars text-blue-400 w-5"></i>
+                    <span class="font-medium text-sm">Male Equipment</span>
+                </button>
+            </form>
+
+            <form action="{{ url_for('action', action='unlock_equipments_female') }}" method="POST">
+                <button type="submit" class="w-full flex items-center gap-x-3 p-4 rounded-2xl border border-zinc-700 hover:bg-zinc-900 transition-colors text-left">
+                    <i class="fa-solid fa-venus text-pink-400 w-5"></i>
+                    <span class="font-medium text-sm">Female Equipment</span>
+                </button>
+            </form>
+
+        </div>
+    </div>
+
 </div>
 {% endblock %}

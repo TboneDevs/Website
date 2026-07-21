@@ -59,14 +59,10 @@
     <nav class="border-b border-zinc-800 bg-zinc-900/80 backdrop-blur-lg sticky top-0 z-50">
         <div class="max-w-7xl mx-auto px-6">
             <div class="flex items-center justify-between h-16">
-                <div class="flex items-center gap-x-8">
+                <div class="flex items-center">
                     <span class="font-display text-xl sm:text-2xl font-semibold tracking-tighter whitespace-nowrap">
                         TNNR <span class="text-emerald-400">CPM1 Webtool</span>
                     </span>
-                    <!-- Navigation Links -->
-                    <div class="hidden md:flex items-center gap-x-6 text-sm font-medium text-zinc-400">
-                        <a href="{{ url_for('premade_accounts') }}" class="hover:text-emerald-400 transition-colors">Premade Accounts</a>
-                    </div>
                 </div>
                 
                 {% if session.get('logged_in') %}
