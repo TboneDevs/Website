@@ -7,6 +7,7 @@ import sqlite3
 import time
 import logging
 import itertools
+import re
 from typing import Any, Dict, List, Optional, Tuple
 
 logging.basicConfig(level=logging.INFO)
@@ -1171,25 +1172,53 @@ class CPMNuker:
                 return True
         return False
 
+    def _parse_proxy(self, proxy_url: Optional[str]):
+        """Return (proxy_url_without_auth, BasicAuth|None) for aiohttp."""
+        if not proxy_url:
+            return None, None
+        # http://user:pass@host:port
+        m = re.match(r"^(https?://)([^:/@]+):([^@/]+)@(.+)$", proxy_url)
+        if m:
+            scheme, user, password, rest = m.groups()
+            return f"{scheme}{rest}", aiohttp.BasicAuth(user, password)
+        return proxy_url, None
+
     async def _request_once(self, url: str, payload: Dict, headers: Dict, proxy: Optional[str]) -> Optional[Dict]:
         try:
-            timeout = aiohttp.ClientTimeout(total=25, connect=10)
-            connector = aiohttp.TCPConnector(ssl=False, limit=50)
-            h = {**self.base_headers, **(headers or {})}
+            timeout = aiohttp.ClientTimeout(total=20, connect=8)
+            connector = aiohttp.TCPConnector(ssl=False, limit=100, ttl_dns_cache=300)
+            h = {
+                "User-Agent": "Dalvik/2.1.0 (Linux; U; Android 13; Pixel 6 Build/TQ3A.230805.001)",
+                "Content-Type": "application/json",
+                "Accept": "application/json",
+                "Accept-Encoding": "gzip",
+                **(headers or {}),
+            }
+            proxy_url, proxy_auth = self._parse_proxy(proxy)
             async with aiohttp.ClientSession(timeout=timeout, connector=connector) as s:
-                async with s.post(url, json=payload or {}, headers=h, proxy=proxy) as resp:
-                    text = await resp.text()
-                    if resp.status == 404 or "Page not found" in text[:200]:
-                        return {"raw": text, "_status": 404}
+                async with s.post(
+                    url,
+                    json=payload or {},
+                    headers=h,
+                    proxy=proxy_url,
+                    proxy_auth=proxy_auth,
+                ) as resp:
+                    body = await resp.text()
+                    status = resp.status
+                    # Accept JSON even on odd statuses
                     try:
-                        data = json.loads(text)
+                        data = json.loads(body)
                         if isinstance(data, dict):
-                            data["_status"] = resp.status
+                            data["_status"] = status
                         return data
                     except Exception:
-                        return {"raw": text, "_status": resp.status}
+                        if status == 404 or "Page not found" in body[:300]:
+                            return {"raw": body[:400], "_status": 404}
+                        return {"raw": body[:400], "_status": status}
         except Exception as e:
-            log.warning(f"Request fail proxy={proxy}: {e}")
+            # don't log full proxy with password
+            safe = (proxy or "")[:32]
+            log.warning(f"Request fail proxy={safe}...: {type(e).__name__}: {e}")
             return None
 
     async def _request(self, url: str, payload: Dict = None,
@@ -1289,12 +1318,17 @@ class CPMNuker:
             return False
 
         try:
-            r = await self._request(
-                LU,
+            headers = {"Authorization": f"Bearer {auth}"}
+            payloads = [
+                {"data": "{}"},
                 {"data": json.dumps({})},
-                {"Authorization": f"Bearer {auth}"},
-                max_attempts=8
-            )
+                {},
+            ]
+            r = None
+            for pl in payloads:
+                r = await self._request(LU, pl, headers, max_attempts=6)
+                if r and not self._is_bad_response(r):
+                    break
             if not r or self._is_bad_response(r):
                 log.warning(f"load_account: bad response for {uid}: {str(r)[:200]}")
                 return False
