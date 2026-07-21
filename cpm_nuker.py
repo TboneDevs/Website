@@ -367,7 +367,7 @@ class CPMNuker:
 
     # ── Save full data ────────────────────────────────────────
     async def _send_data(self, auth: str, data: Dict) -> Tuple[bool, str]:
-        # Clean data before sending — remove any extra keys not needed
+        # Keep core game fields; do not wipe unknown keys if present
         safe_keys = {
             "Name", "localID", "money", "coin",
             "floats", "integers", "wheels", "animations",
@@ -381,11 +381,19 @@ class CPMNuker:
             {"data": json.dumps(clean_data)},
             {"Authorization": f"Bearer {auth}"}
         )
-        if r:
-            rs = str(r)
-            if '"result":1' in rs or "'result': 1" in rs or "1" in rs:
+        if not r:
+            return False, "SAVE_FAILED - no response"
+        # Accept common success shapes from CPM cloud functions
+        if isinstance(r, dict):
+            if r.get("result") == 1 or r.get("result") == "1":
                 return True, "OK"
-        return False, "SAVE_FAILED"
+            if r.get("result") is True:
+                return True, "OK"
+        rs = str(r)
+        if '"result":1' in rs or "'result': 1" in rs or '"result": 1' in rs:
+            return True, "OK"
+        log.warning(f"SAVE response: {rs[:300]}")
+        return False, f"SAVE_FAILED - {rs[:120]}"
 
     async def _save(self, uid: int, data: Dict) -> Dict[str, Any]:
         ok, msg, auth = await self.get_valid_token(uid)
@@ -403,27 +411,40 @@ class CPMNuker:
         Always returns real account data.
         Loads from server if not cached.
         """
-        loaded = await self.load_account(uid)
+        loaded = await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         return self.get_user_template(uid, em)
 
     async def _modify(self, uid: int, mods: Dict[str, Any]) -> Dict[str, Any]:
-        """Fixed: Always load real data first before modifying"""
-        # Load real data from server first
-        await self.load_account(uid)
+        """Always force-load real data first before modifying"""
+        loaded = await self.load_account(uid, force=True)
+        if not loaded:
+            return {"ok": False, "message": "LOAD_FAILED - could not fetch account data from server"}
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
 
+        # Guard: refuse to save if we only have an empty template
+        if not d.get("Name") and not d.get("localID") and not d.get("floats") and not d.get("integers"):
+            # one more retry
+            loaded = await self.load_account(uid, force=True)
+            if not loaded:
+                return {"ok": False, "message": "LOAD_FAILED - empty account data"}
+            d = self.get_user_template(uid, em)
+
         for k, v in mods.items():
             if k == "money":
-                v = min(v, MAX_MONEY)
+                v = min(int(v), MAX_MONEY)
             if k == "coin":
-                v = min(v, MAX_COIN)
+                v = min(int(v), MAX_COIN)
             d[k] = v
 
-        return await self._save(uid, d)
+        result = await self._save(uid, d)
+        if result.get("ok"):
+            # refresh cache from server so dashboard shows new values
+            await self.load_account(uid, force=True)
+        return result
 
     # ── Game operations ───────────────────────────────────────
     async def set_money(self, uid: int, amount: int) -> Dict[str, Any]:
@@ -433,7 +454,7 @@ class CPMNuker:
         return await self._modify(uid, {"coin": min(amount, MAX_COIN)})
 
     async def set_player_name(self, uid: int, name: str) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -441,7 +462,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def set_player_id(self, uid: int, pid: str) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -449,7 +470,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def set_race_wins(self, uid: int, amount: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -461,7 +482,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def set_race_loses(self, uid: int, amount: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -473,7 +494,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_w16(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -485,7 +506,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_horns(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -498,7 +519,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def disable_damage(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -510,7 +531,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlimited_fuel(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -522,7 +543,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_smoke(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -534,7 +555,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_animations(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -543,7 +564,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_wheels(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -559,7 +580,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_houses(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -572,7 +593,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def complete_all_levels(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -581,7 +602,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_equipments_male(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -604,7 +625,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def unlock_equipments_female(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)
@@ -627,7 +648,7 @@ class CPMNuker:
         return await self._save(uid, d)
 
     async def set_rank(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         ok, msg, auth = await self.get_valid_token(uid)
         if not ok:
             return {"ok": False, "message": msg}
@@ -656,7 +677,7 @@ class CPMNuker:
         return {"ok": False, "message": "RANK_FAILED"}
 
     async def fix_account_data(self, uid: int) -> Dict[str, Any]:
-        await self.load_account(uid)
+        await self.load_account(uid, force=True)
         td = self.get_token_data(uid)
         em = td.get("email") if td else None
         d = self.get_user_template(uid, em)

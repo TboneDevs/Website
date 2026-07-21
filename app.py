@@ -185,6 +185,11 @@ def action(action):
         result = {"ok": False, "message": str(e)}
 
     if result.get("ok"):
+        # Force refresh cached account data for dashboard display
+        try:
+            run_async(nuker.load_account(web_uid, force=True))
+        except Exception:
+            pass
         flash(f"✅ {action.replace('_', ' ').title()} completed successfully!", "success")
     else:
         flash(f"❌ Failed: {result.get('message', 'Unknown error')}", "error")
