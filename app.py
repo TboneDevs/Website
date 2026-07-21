@@ -1,163 +1,239 @@
+#!/usr/bin/env python3
+"""
+TNNR CPM1 Webtool - Full Unlock Version
+"""
+
 import asyncio
-from flask import Flask, request, render_template, redirect, url_for, session, flash
+import os
+import uuid
+from flask import (
+    Flask, render_template, request, redirect, url_for,
+    flash, session, jsonify
+)
 from cpm_nuker import CPMNuker
 
 app = Flask(__name__)
-app.secret_key = 'your_super_secret_key_here' 
+app.secret_key = os.getenv("FLASK_SECRET_KEY", "change-this-to-a-secure-random-string-in-production")
 
 nuker = CPMNuker()
 
-# --- AUTHENTICATION & CORE ROUTES ---
 
-@app.route('/', methods=['GET'])
+def get_web_uid() -> int:
+    if 'web_uid' not in session:
+        web_uid = str(uuid.uuid4().int)[:12]
+        session['web_uid'] = int(web_uid)
+        session['email'] = None
+    return session['web_uid']
+
+
+def get_email():
+    return session.get('email', 'Not logged in')
+
+
+def run_async(coro):
+    try:
+        return asyncio.run(coro)
+    except Exception as e:
+        print(f"[ERROR] {e}")
+        return {"ok": False, "message": str(e)}
+
+
+@app.route('/')
 def index():
-    if session.get('logged_in'):
-        return redirect(url_for('dashboard'))
-    return render_template('index.html')
+    return render_template('index.html', email=get_email())
 
-@app.route('/login', methods=['GET', 'POST'])
+
+@app.route('/login', methods=['POST'])
 def login():
-    if request.method == 'POST':
-        email = request.form.get('email')
-        password = request.form.get('password')
-        
-        result = asyncio.run(nuker.account_login(email, password))
-        
-        if result.get("ok"):
-            session['logged_in'] = True
-            session['cpm_email'] = email
-            # Storing as string to avoid type errors
-            session['cpm_uid'] = str(result.get('localId')) 
-            nuker.save_token(session['cpm_uid'], result['auth'], email, password, result.get('refresh_token'))
-            return redirect(url_for('dashboard'))
-        else:
-            flash(f"Login Failed: {result.get('message')}", 'error')
-            return redirect(url_for('login'))
-            
-    return render_template('login.html')
+    email = request.form.get('email', '').strip()
+    password = request.form.get('password', '').strip()
+
+    if not email or not password:
+        flash("Email and password are required.", "error")
+        return redirect(url_for('index'))
+
+    web_uid = get_web_uid()
+
+    result = run_async(nuker.account_login(email, password))
+    if not result.get("ok"):
+        msg = result.get("message", "LOGIN_FAILED")
+        flash(f"Login failed: {msg}", "error")
+        return redirect(url_for('index'))
+
+    nuker.save_token(web_uid, result["auth"], email, password, result.get("refresh_token", ""))
+    loaded = run_async(nuker.load_account(web_uid, force=True))
+
+    session['email'] = email
+    session['logged_in'] = True
+
+    if loaded:
+        flash(f"✅ Successfully logged in as {email}", "success")
+
+    flash(
+        "ℹ️ Important: To properly save changes, please logout of the game first, "
+        "then run hacks/presets here. Once the site shows 'successful', log back into the game.",
+        "info"
+    )
+
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/dashboard')
 def dashboard():
     if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    return render_template('dashboard.html')
+        flash("Please log in first.", "error")
+        return redirect(url_for('index'))
 
-@app.route('/premade-accounts')
-def premade_accounts():
+    web_uid = get_web_uid()
+    email = session.get('email', 'Unknown')
+
+    try:
+        data = nuker.get_user_template(web_uid, email)
+    except Exception:
+        data = {}
+
+    return render_template(
+        'dashboard.html',
+        email=email,
+        name=data.get('Name', 'Unknown'),
+        pid=data.get('localID', 'N/A'),
+        money=data.get('money', 0),
+        coin=data.get('coin', 0)
+    )
+
+
+@app.route('/action/<action>', methods=['POST'])
+def action(action):
     if not session.get('logged_in'):
-        return redirect(url_for('login'))
-    return render_template('premade_accounts.html')
+        return jsonify({"ok": False, "message": "Not logged in"}), 401
 
-# FIX: Added route to resolve BuildError
-@app.route('/claim-account', methods=['POST'])
-def claim_account():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    # Add your specific claim logic here
-    flash("Account claim process triggered.", "success")
-    return redirect(url_for('premade_accounts'))
+    web_uid = get_web_uid()
+    result = {"ok": False, "message": "Unknown action"}
+
+    try:
+        # Money & Coins
+        if action == "set_money":
+            amount = int(request.form.get('amount', 0))
+            result = run_async(nuker.set_money(web_uid, amount))
+
+        elif action == "set_coin":
+            amount = int(request.form.get('amount', 0))
+            result = run_async(nuker.set_coin(web_uid, amount))
+
+        elif action == "set_race_wins":
+            amount = int(request.form.get('amount', 0))
+            result = run_async(nuker.set_race_wins(web_uid, amount))
+
+        # Max Rank
+        elif action == "set_rank":
+            result = run_async(nuker.set_rank(web_uid))
+
+        # Complete All Levels
+        elif action == "complete_levels":
+            result = run_async(nuker.complete_all_levels(web_uid))
+
+        # Individual unlocks
+        elif action == "unlock_w16":
+            result = run_async(nuker.unlock_w16(web_uid))
+
+        elif action == "unlock_horns":
+            result = run_async(nuker.unlock_horns(web_uid))
+
+        elif action == "disable_damage":
+            result = run_async(nuker.disable_damage(web_uid))
+
+        elif action == "unlimited_fuel":
+            result = run_async(nuker.unlimited_fuel(web_uid))
+
+        elif action == "unlock_smoke":
+            result = run_async(nuker.unlock_smoke(web_uid))
+
+        elif action == "unlock_animations":
+            result = run_async(nuker.unlock_animations(web_uid))
+
+        elif action == "unlock_wheels":
+            result = run_async(nuker.unlock_wheels(web_uid))
+
+        elif action == "unlock_houses":
+            result = run_async(nuker.unlock_houses(web_uid))
+
+        elif action == "unlock_equipments_male":
+            result = run_async(nuker.unlock_equipments_male(web_uid))
+
+        elif action == "unlock_equipments_female":
+            result = run_async(nuker.unlock_equipments_female(web_uid))
+
+        # === PRESETS ===
+        elif action == "preset_50m_30k":
+            r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+            r2 = run_async(nuker.set_coin(web_uid, 30_000))
+            result = {"ok": r1.get("ok") and r2.get("ok")}
+
+        elif action == "preset_50m_50k":
+            r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+            r2 = run_async(nuker.set_coin(web_uid, 50_000))
+            result = {"ok": r1.get("ok") and r2.get("ok")}
+
+        elif action == "preset_50m_100k":
+            r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+            r2 = run_async(nuker.set_coin(web_uid, 100_000))
+            result = {"ok": r1.get("ok") and r2.get("ok")}
+
+        elif action == "preset_50m_500k":
+            r1 = run_async(nuker.set_money(web_uid, 50_000_000))
+            r2 = run_async(nuker.set_coin(web_uid, 500_000))
+            result = {"ok": r1.get("ok") and r2.get("ok")}
+
+        # Full Unlock Preset (matches generator)
+        elif action == "full_unlock":
+            results = []
+            results.append(run_async(nuker.set_money(web_uid, 50_000_000)))
+            results.append(run_async(nuker.set_coin(web_uid, 30_000)))
+            results.append(run_async(nuker.set_race_wins(web_uid, 670000)))
+            results.append(run_async(nuker.set_rank(web_uid)))
+            results.append(run_async(nuker.complete_all_levels(web_uid)))
+            results.append(run_async(nuker.unlock_w16(web_uid)))
+            results.append(run_async(nuker.unlock_horns(web_uid)))
+            results.append(run_async(nuker.disable_damage(web_uid)))
+            results.append(run_async(nuker.unlimited_fuel(web_uid)))
+            results.append(run_async(nuker.unlock_smoke(web_uid)))
+            results.append(run_async(nuker.unlock_animations(web_uid)))
+            results.append(run_async(nuker.unlock_wheels(web_uid)))
+            results.append(run_async(nuker.unlock_houses(web_uid)))
+            results.append(run_async(nuker.unlock_equipments_male(web_uid)))
+            results.append(run_async(nuker.unlock_equipments_female(web_uid)))
+            result = {"ok": all(r.get("ok") for r in results)}
+
+    except Exception as e:
+        result = {"ok": False, "message": str(e)}
+
+    if result.get("ok"):
+        flash(f"✅ {action.replace('_', ' ').title()} completed successfully!", "success")
+    else:
+        flash(f"❌ Failed: {result.get('message', 'Unknown error')}", "error")
+
+    return redirect(url_for('dashboard'))
+
 
 @app.route('/logout')
 def logout():
+    web_uid = session.get('web_uid')
+    if web_uid:
+        try:
+            nuker.delete_token(web_uid)
+        except Exception:
+            pass
     session.clear()
+    flash("You have been logged out.", "success")
     return redirect(url_for('index'))
 
-# --- MODIFICATION ROUTES ---
-# All routes include error handling to prevent crashes from bad input
 
-@app.route('/modify-money', methods=['POST'])
-def modify_money():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    try:
-        amount = int(request.form.get('amount'))
-        uid = session.get('cpm_uid')
-        asyncio.run(nuker.set_money(uid, amount))
-    except (ValueError, TypeError):
-        flash("Invalid amount entered.", "error")
-    return redirect(url_for('dashboard'))
+@app.route('/health')
+def health():
+    return "✅ TNNR CPM1 Webtool is running", 200
 
-@app.route('/modify-coins', methods=['POST'])
-def modify_coins():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    try:
-        amount = int(request.form.get('amount'))
-        uid = session.get('cpm_uid')
-        asyncio.run(nuker.set_coin(uid, amount))
-    except (ValueError, TypeError):
-        flash("Invalid amount entered.", "error")
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-achievements', methods=['POST'])
-def modify_achievements():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.unlock_achievements(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-levels', methods=['POST'])
-def modify_levels():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.complete_all_levels(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-animations', methods=['POST'])
-def modify_animations():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.unlock_animations(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-wheels', methods=['POST'])
-def modify_wheels():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.unlock_wheels(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-houses', methods=['POST'])
-def modify_houses():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.unlock_houses(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-smoke', methods=['POST'])
-def modify_smoke():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.unlock_smoke(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-name', methods=['POST'])
-def modify_name():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    name = request.form.get('name')
-    asyncio.run(nuker.set_player_name(uid, name))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-id', methods=['POST'])
-def modify_id():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    pid = request.form.get('pid')
-    asyncio.run(nuker.set_player_id(uid, pid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/modify-rank', methods=['POST'])
-def modify_rank():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.set_rank(uid))
-    return redirect(url_for('dashboard'))
-
-@app.route('/fix-data', methods=['POST'])
-def fix_data():
-    if not session.get('logged_in'): return redirect(url_for('login'))
-    uid = session.get('cpm_uid')
-    asyncio.run(nuker.fix_account_data(uid))
-    return redirect(url_for('dashboard'))
 
 if __name__ == '__main__':
-    app.run(debug=True, port=5000)
-    
+    port = int(os.getenv("PORT", 8080))
+    print(f"🚀 Starting TNNR CPM1 Webtool on port {port}")
+    app.run(host="0.0.0.0", port=port, debug=False)
