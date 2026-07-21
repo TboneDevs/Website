@@ -1,43 +1,63 @@
 {% extends "base.html" %}
 {% block content %}
-<div class="max-w-xl mx-auto">
-    <div class="text-center mb-8">
-        <h1 class="text-4xl sm:text-5xl font-display tracking-tight">CPM Account Editor</h1>
-        <p class="mt-3 text-zinc-400">Inject unlocks into your existing Car Parking Multiplayer account</p>
+<div class="max-w-2xl mx-auto">
+    <div class="text-center mb-10">
+        <div class="inline-flex items-center gap-x-2 px-4 py-1.5 rounded-3xl bg-zinc-900 border border-zinc-800 text-sm mb-6">
+            <i class="fa-solid fa-globe text-emerald-400"></i>
+            <span class="font-medium">Public Web Version</span>
+        </div>
+        <h1 class="text-5xl sm:text-6xl font-display font-semibold tracking-tighter">CPM Account Editor</h1>
+        <p class="mt-4 text-xl text-zinc-400">Inject unlocks into your existing Car Parking Multiplayer account</p>
     </div>
 
-    <!-- Free Accounts Button -->
-    <a href="https://www.TNNR.lol" target="_blank" rel="noopener"
-       class="block w-full text-center mb-6 bg-gradient-to-r from-amber-400 to-yellow-500 hover:from-amber-300 hover:to-yellow-400 text-black font-bold py-4 rounded-2xl text-lg shadow-lg shadow-amber-500/20 transition">
+    <a href="https://www.TNNR.lol" target="_blank" rel="noopener noreferrer"
+       class="block w-full text-center mb-8 bg-gradient-to-r from-amber-400 via-yellow-400 to-amber-500 hover:from-amber-300 hover:to-yellow-400 text-black font-bold py-5 px-6 rounded-3xl text-lg shadow-lg shadow-amber-500/20 transition-all">
         <i class="fa-solid fa-gift mr-2"></i> Free CPM1 Accounts
     </a>
-    <p class="text-center text-xs text-zinc-500 -mt-4 mb-8">www.TNNR.lol</p>
+    <p class="text-center text-xs text-zinc-500 -mt-6 mb-8">www.TNNR.lol</p>
 
-    <div class="bg-red-950/30 border border-red-900/60 rounded-2xl p-5 mb-6 text-sm text-red-300/90">
-        <div class="font-semibold text-red-300 mb-2"><i class="fa-solid fa-triangle-exclamation mr-2"></i>Warning</div>
-        <ul class="space-y-1 text-[13px]">
-            <li>• Logs into your CPM account with the email/password you enter</li>
-            <li>• Logout of the game before using unlocks</li>
-            <li>• Use at your own risk</li>
-        </ul>
+    <div class="bg-red-950/40 border border-red-900/70 rounded-3xl p-6 mb-8">
+        <div class="flex gap-x-4">
+            <i class="fa-solid fa-exclamation-triangle text-red-400 text-3xl flex-shrink-0"></i>
+            <div class="text-sm">
+                <div class="font-semibold text-red-300 mb-1.5">SECURITY WARNING</div>
+                <ul class="space-y-1.5 text-red-300/90 text-[13px]">
+                    <li>• This tool logs into your CPM account with the email/password you enter.</li>
+                    <li>• Logout of the game before running unlocks.</li>
+                    <li>• We do not store your password after the session ends.</li>
+                    <li>• Use at your own risk.</li>
+                </ul>
+            </div>
+        </div>
     </div>
 
-    <div class="glass border border-zinc-800 rounded-2xl p-6">
-        <div class="font-semibold mb-1">Sign in with your CPM account</div>
-        <p class="text-sm text-zinc-400 mb-5">We load your real progress then apply unlocks.</p>
-        <form method="POST" action="{{ url_for('login') }}" class="space-y-4">
+    <div class="glass border border-zinc-800 rounded-3xl p-8">
+        <div class="mb-6">
+            <div class="font-semibold text-lg">Sign in with your CPM account</div>
+            <div class="text-sm text-zinc-400 mt-1">We'll load your real progress then apply unlocks.</div>
+        </div>
+        <form method="POST" action="{{ url_for('login') }}" class="space-y-5">
             <div>
-                <label class="block text-sm text-zinc-400 mb-1">Email</label>
-                <input type="email" name="email" required class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm outline-none" placeholder="you@gmail.com">
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Email Address</label>
+                <input type="email" name="email" required
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="you@gmail.com">
             </div>
             <div>
-                <label class="block text-sm text-zinc-400 mb-1">Password</label>
-                <input type="password" name="password" required class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 rounded-xl px-4 py-3 text-sm outline-none" placeholder="••••••••">
+                <label class="block text-sm font-medium text-zinc-400 mb-1.5">CPM Password</label>
+                <input type="password" name="password" required
+                       class="w-full bg-zinc-900 border border-zinc-700 focus:border-emerald-500 transition-colors rounded-2xl px-5 py-3.5 text-sm outline-none"
+                       placeholder="••••••••">
             </div>
-            <button type="submit" class="w-full bg-emerald-500 hover:bg-emerald-600 text-black font-semibold py-3.5 rounded-xl text-sm">
-                LOGIN & LOAD ACCOUNT
+            <button type="submit"
+                    class="w-full mt-2 flex items-center justify-center gap-x-3 bg-emerald-500 hover:bg-emerald-600 active:bg-emerald-700 transition-all text-black font-semibold py-4 rounded-3xl text-sm tracking-wider">
+                <i class="fa-solid fa-sign-in-alt"></i>
+                <span>LOGIN &amp; LOAD ACCOUNT</span>
             </button>
         </form>
+        <div class="mt-6 text-center text-[10px] text-zinc-500">
+            Password is never saved to disk after the request.
+        </div>
     </div>
 </div>
 {% endblock %}
